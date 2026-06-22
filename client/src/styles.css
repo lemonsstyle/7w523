@@ -95,6 +95,17 @@ input:focus {
   border-bottom: 1px solid rgba(245, 240, 223, 0.12);
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.icon-button {
+  width: 42px;
+  padding: 0;
+}
+
 .eyebrow,
 .panel-label {
   margin: 0 0 8px;

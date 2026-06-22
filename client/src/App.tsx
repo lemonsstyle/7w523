@@ -6,6 +6,8 @@ import {
   DoorOpen,
   Hand,
   Home,
+  Volume2,
+  VolumeX,
   Play,
   RotateCcw,
   Scissors,
@@ -23,8 +25,10 @@ import {
   type RpsChoice,
   type ServerMessage
 } from "@seven-kings-523/shared";
+import { playSound } from "./sound";
 
 const PLAYER_KEY = "seven-kings-523-player";
+const SOUND_KEY = "seven-kings-523-muted";
 
 export function App() {
   const [name, setName] = useState(() => localStorage.getItem("seven-kings-523-name") ?? "");
@@ -36,7 +40,9 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState("复制房间号");
   const [isConnected, setIsConnected] = useState(false);
+  const [isMuted, setIsMuted] = useState(() => localStorage.getItem(SOUND_KEY) === "true");
   const socketRef = useRef<WebSocket | null>(null);
+  const previousStateRef = useRef<PublicRoomState | null>(null);
 
   const wsUrl = useMemo(() => websocketUrl(), []);
 
@@ -126,6 +132,46 @@ export function App() {
     return () => window.clearTimeout(timeout);
   }, [copyStatus]);
 
+  useEffect(() => {
+    if (!state || (state.phase !== "playing" && state.phase !== "finished")) {
+      previousStateRef.current = state;
+      return;
+    }
+
+    const previousState = previousStateRef.current;
+    previousStateRef.current = state;
+
+    if (!previousState || previousState.roomId !== state.roomId || previousState.you !== state.you) {
+      return;
+    }
+
+    const currentPlayer = state.players.find((player) => player.id === state.you);
+    const previousPlayer = previousState.players.find((player) => player.id === previousState.you);
+    const handDelta = (currentPlayer?.handCount ?? 0) - (previousPlayer?.handCount ?? 0);
+
+    if (state.winner?.reason === "special" && previousState.winner?.reason !== "special") {
+      playSound("special", isMuted);
+      return;
+    }
+
+    if (handDelta > 0) {
+      playSound("draw", isMuted, handDelta);
+      return;
+    }
+
+    const currentTrickIds = state.currentTrick?.cards.map((card) => card.id).join("|") ?? "";
+    const previousTrickIds = previousState.currentTrick?.cards.map((card) => card.id).join("|") ?? "";
+
+    if (currentTrickIds && currentTrickIds !== previousTrickIds) {
+      playSound(previousState.currentTrick ? "beat" : "lead", isMuted);
+      return;
+    }
+
+    if (state.phase === "playing" && previousState.currentTrick && !state.currentTrick) {
+      playSound("pass", isMuted);
+    }
+  }, [isMuted, state]);
+
   function emit(message: ClientMessage) {
     if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
       setError("服务端没有连接上，操作没有发送。");
@@ -173,6 +219,7 @@ export function App() {
     }
 
     if (selectedIds.includes(cardId)) {
+      playSound("button", isMuted);
       emit({ type: "playCards", cardIds: selectedIds });
       return;
     }
@@ -188,7 +235,23 @@ export function App() {
             <p className="eyebrow">七王五二三</p>
             <h1>{state ? `房间 ${state.roomId}` : "双人在线对战"}</h1>
           </div>
-          <ConnectionPill connected={isConnected} />
+          <div className="topbar-actions">
+            <button
+              type="button"
+              className="icon-button"
+              aria-label={isMuted ? "打开音效" : "关闭音效"}
+              title={isMuted ? "打开音效" : "关闭音效"}
+              onClick={() => {
+                const nextMuted = !isMuted;
+                setIsMuted(nextMuted);
+                localStorage.setItem(SOUND_KEY, String(nextMuted));
+                playSound("button", nextMuted);
+              }}
+            >
+              {isMuted ? <VolumeX size={17} /> : <Volume2 size={17} />}
+            </button>
+            <ConnectionPill connected={isConnected} />
+          </div>
         </header>
 
         {!state ? (
@@ -236,10 +299,22 @@ export function App() {
                   canPass={Boolean(state.currentTrick) && isYourTurn}
                   canDraw={state.canDraw}
                   onCardClick={(cardId) => handleCardClick(cardId, isYourTurn)}
-                  onPlay={() => emit({ type: "playCards", cardIds: selectedIds })}
-                  onPass={() => emit({ type: "pass" })}
-                  onDraw={() => emit({ type: "drawToFive" })}
-                  onClaim={() => emit({ type: "claimSpecialWin" })}
+                  onPlay={() => {
+                    playSound("button", isMuted);
+                    emit({ type: "playCards", cardIds: selectedIds });
+                  }}
+                  onPass={() => {
+                    playSound("button", isMuted);
+                    emit({ type: "pass" });
+                  }}
+                  onDraw={() => {
+                    playSound("button", isMuted);
+                    emit({ type: "drawToFive" });
+                  }}
+                  onClaim={() => {
+                    playSound("button", isMuted);
+                    emit({ type: "claimSpecialWin" });
+                  }}
                 />
               )}
 
