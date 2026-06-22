@@ -17,6 +17,7 @@ import {
   WifiOff
 } from "lucide-react";
 import {
+  analyzeCards,
   cardLabel,
   rankLabel,
   type Card,
@@ -130,6 +131,7 @@ export function App() {
   const you = state?.players.find((player) => player.id === state.you);
   const opponent = state?.players.find((player) => player.id !== state.you);
   const selectedCards = you?.hand?.filter((card) => selectedIds.includes(card.id)) ?? [];
+  const selectedSet = analyzeCards(selectedCards);
   const isYourTurn = state?.phase === "playing" && state.currentTurn === state.you;
 
   useEffect(() => {
@@ -252,8 +254,14 @@ export function App() {
     }
 
     if (selectedIds.includes(cardId)) {
-      playSound("button", isMuted);
-      emit({ type: "playCards", cardIds: selectedIds });
+      const currentSelection = you?.hand?.filter((card) => selectedIds.includes(card.id)) ?? [];
+      if (analyzeCards(currentSelection)) {
+        playSound("button", isMuted);
+        emit({ type: "playCards", cardIds: selectedIds });
+        return;
+      }
+
+      setSelectedIds((current) => current.filter((selectedId) => selectedId !== cardId));
       return;
     }
 
@@ -343,6 +351,7 @@ export function App() {
                     cards={you.hand}
                     selectedCards={selectedCards}
                     selectedIds={selectedIds}
+                    selectedSetValid={Boolean(selectedSet)}
                     isYourTurn={isYourTurn}
                     canPass={Boolean(state.currentTrick) && isYourTurn}
                     canDraw={state.canDraw}
@@ -788,6 +797,7 @@ interface HandPanelProps {
   cards: Card[];
   selectedCards: Card[];
   selectedIds: string[];
+  selectedSetValid: boolean;
   isYourTurn: boolean;
   canPass: boolean;
   canDraw: boolean;
@@ -822,7 +832,7 @@ function HandPanel(props: HandPanelProps) {
 
       <div className="action-bar">
         <span className="selection-summary">
-          已选 {props.selectedCards.length} 张
+          已选 {props.selectedCards.length} 张{props.selectedCards.length > 0 && !props.selectedSetValid ? " · 组合无效" : ""}
         </span>
         <button type="button" className="primary-action" onClick={props.onPlay} disabled={!props.isYourTurn || props.selectedIds.length === 0}>
           出牌
@@ -843,12 +853,20 @@ function HandPanel(props: HandPanelProps) {
 
 function ResultPanel({ state, onReady }: { state: PublicRoomState; onReady: () => void }) {
   const winner = state.players.find((player) => player.id === state.winner?.playerId);
+  const isSpecialWin = state.winner?.reason === "special";
+  const didYouWin = state.you === state.winner?.playerId;
   const youReady = Boolean(state.you && state.rematchReady[state.you]);
 
   return (
-    <div className="result-panel">
-      <BadgeCheck size={32} />
-      <h2>{winner?.name ?? "胜者"} 赢了</h2>
+    <div className={`result-panel ${isSpecialWin ? "is-special-victory" : ""}`}>
+      {isSpecialWin ? (
+        <SpecialVictoryBanner winnerName={winner?.name ?? "胜者"} didYouWin={didYouWin} />
+      ) : (
+        <>
+          <BadgeCheck size={32} />
+          <h2>{winner?.name ?? "胜者"} 赢了</h2>
+        </>
+      )}
       <p>{state.lastAction}</p>
       <div className="rematch-readiness" aria-label="再来一局准备状态">
         {state.players.map((player) => (
@@ -862,6 +880,25 @@ function ResultPanel({ state, onReady }: { state: PublicRoomState; onReady: () =
         <RotateCcw size={18} />
         {youReady ? "等待对方" : "再来一局"}
       </button>
+    </div>
+  );
+}
+
+function SpecialVictoryBanner({ winnerName, didYouWin }: { winnerName: string; didYouWin: boolean }) {
+  return (
+    <div className="special-victory-banner">
+      <div className="sigil-ring" aria-hidden="true">
+        {["7", "王", "5", "2", "3"].map((label, index) => (
+          <span key={label} style={{ ["--sigil-index" as string]: index }}>
+            {label}
+          </span>
+        ))}
+      </div>
+      <div>
+        <p className="panel-label">王者归位</p>
+        <h2>{didYouWin ? "你完成了宣言" : `${winnerName} 完成了宣言`}</h2>
+        <p className="muted-text">{didYouWin ? "五张牌落定，本局归你。" : "五张牌落定，本局归对手。"}</p>
+      </div>
     </div>
   );
 }

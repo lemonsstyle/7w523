@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   GameStore,
+  claimSpecialWin,
   chooseRps,
   drawToFive,
   pass,
@@ -197,6 +198,23 @@ describe("game flow", () => {
     expect(room.players.P1?.hand.length).toBe(5);
     expect(room.players.P2?.hand.length).toBe(5);
     expect(room.deck.length).toBe(0);
+  });
+
+  it("waits for the player to claim a special win", () => {
+    const room = makeRoom();
+    room.players.P1!.hand = cards(["7", "small-joker", "5", "2"]);
+    room.players.P2!.hand = cards(["A", "4", "6", "8"]);
+    room.deck = cards(["3"]);
+
+    drawToFive(room, "P1");
+
+    expect(room.phase).toBe("playing");
+
+    claimSpecialWin(room, "P1");
+
+    expect(room.phase).toBe("finished");
+    expect(room.winner?.reason).toBe("special");
+    expect(room.score.P1).toBe(1);
   });
 
   it("hides opponent hand in public state", () => {

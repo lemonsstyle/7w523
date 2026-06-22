@@ -489,8 +489,6 @@ export function drawToFive(room: Room, playerId: PlayerId): void {
     drewCards > 0
       ? `${actor.name} 发起补牌，双方按回合顺序摸到 5 张或牌库见底。`
       : "牌库已经见底，不能再补牌。";
-
-  checkAutomaticSpecialWin(room);
 }
 
 export function claimSpecialWin(room: Room, playerId: PlayerId): void {
@@ -559,7 +557,6 @@ export function startGame(room: Room, firstPlayer: PlayerId, random: () => numbe
   const firstName = room.players[firstPlayer]?.name ?? firstPlayer;
   const firstMoveMethod = room.firstMove.mode === "dice" ? "摇骰胜出" : "猜拳胜出";
   room.lastAction = `${firstName} ${firstMoveMethod}，先手开始。`;
-  checkAutomaticSpecialWin(room);
 }
 
 function prepareDeck(random: () => number): Card[] {
@@ -585,15 +582,6 @@ function canDrawNow(room: Room): boolean {
     !room.currentTrick &&
     orderedPlayers(room).some((player) => player.hand.length < HAND_TARGET_SIZE)
   );
-}
-
-function checkAutomaticSpecialWin(room: Room): void {
-  for (const player of orderedPlayers(room)) {
-    if (hasSpecialWin(player.hand)) {
-      finish(room, player.id, "special", `${player.name} 集齐 7、王、5、2、3，赢得本局。`);
-      return;
-    }
-  }
 }
 
 function finish(room: Room, playerId: PlayerId, reason: WinnerState["reason"], lastAction: string): void {

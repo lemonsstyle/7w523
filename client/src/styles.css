@@ -698,6 +698,84 @@ label {
   gap: 12px;
 }
 
+.result-panel.is-special-victory {
+  overflow: hidden;
+  border-color: rgba(246, 197, 83, 0.28);
+  background:
+    linear-gradient(135deg, rgba(246, 197, 83, 0.12), transparent 48%),
+    rgba(0, 0, 0, 0.18);
+}
+
+.special-victory-banner {
+  width: 100%;
+  min-height: 164px;
+  display: grid;
+  grid-template-columns: 148px 1fr;
+  align-items: center;
+  gap: 22px;
+}
+
+.sigil-ring {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(246, 197, 83, 0.24);
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(246, 197, 83, 0.16), rgba(0, 0, 0, 0.12) 58%, transparent 60%);
+  animation: sigil-glow 1500ms ease both;
+}
+
+.sigil-ring::before {
+  content: "";
+  width: 56px;
+  height: 56px;
+  border: 1px solid rgba(217, 255, 159, 0.28);
+  border-radius: 999px;
+  background: rgba(110, 168, 78, 0.12);
+}
+
+.sigil-ring span {
+  position: absolute;
+  width: 34px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  color: #211908;
+  border: 1px solid rgba(246, 197, 83, 0.4);
+  border-radius: 6px;
+  background: #f8f1df;
+  font-weight: 900;
+  transform:
+    rotate(calc(var(--sigil-index) * 72deg))
+    translateY(-56px)
+    rotate(calc(var(--sigil-index) * -72deg));
+  animation: sigil-card 520ms ease both;
+  animation-delay: calc(var(--sigil-index) * 70ms);
+}
+
+.sigil-ring span:nth-child(2) {
+  color: #b92525;
+}
+
+@keyframes sigil-card {
+  from {
+    opacity: 0;
+    transform:
+      rotate(calc(var(--sigil-index) * 72deg))
+      translateY(-24px)
+      rotate(calc(var(--sigil-index) * -72deg));
+  }
+}
+
+@keyframes sigil-glow {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
 .rematch-readiness {
   width: min(520px, 100%);
   display: grid;
@@ -882,6 +960,10 @@ label {
 
   .deck-meter {
     justify-self: stretch;
+  }
+
+  .special-victory-banner {
+    grid-template-columns: 1fr;
   }
 
   .card-back,
