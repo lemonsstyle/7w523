@@ -594,7 +594,7 @@ function FirstMovePanel({
       <div className="first-move-header">
         <div>
           <p className="panel-label">决定先手</p>
-          <h2>{state.firstMove.mode === "rps" ? "手势对决" : "命运骰盅"}</h2>
+          <h2>{state.firstMove.mode === "rps" ? "剪刀石头布" : "命运骰盅"}</h2>
         </div>
         <div className="mode-switch" role="group" aria-label="选择先手方式">
           <button
@@ -618,22 +618,22 @@ function FirstMovePanel({
         <div className="rps-actions">
           <FirstMoveChoice
             icon={<ShieldAlert size={28} />}
-            title="磐石"
-            subtitle="压住剪刀"
+            title="石头"
+            subtitle="克剪刀"
             active={state.you ? state.firstMove.rpsChoices[state.you] === "rock" : false}
             onClick={() => onChoose("rock")}
           />
           <FirstMoveChoice
             icon={<Scissors size={28} />}
-            title="断刃"
-            subtitle="切开布阵"
+            title="剪刀"
+            subtitle="克布"
             active={state.you ? state.firstMove.rpsChoices[state.you] === "scissors" : false}
             onClick={() => onChoose("scissors")}
           />
           <FirstMoveChoice
             icon={<Hand size={28} />}
-            title="天幕"
-            subtitle="包住磐石"
+            title="布"
+            subtitle="克石头"
             active={state.you ? state.firstMove.rpsChoices[state.you] === "paper" : false}
             onClick={() => onChoose("paper")}
           />
@@ -906,9 +906,9 @@ function typeLabel(type: NonNullable<PublicRoomState["currentTrick"]>["type"]) {
 
 function rpsLabel(choice: RpsChoice) {
   const labels: Record<RpsChoice, string> = {
-    rock: "磐石",
-    scissors: "断刃",
-    paper: "天幕"
+    rock: "石头",
+    scissors: "剪刀",
+    paper: "布"
   };
 
   return labels[choice];
