@@ -540,7 +540,7 @@ export function startGame(room: Room, firstPlayer: PlayerId, random: () => numbe
 
 function prepareDeck(random: () => number): Card[] {
   const deck = shuffle(createDeck(), random);
-  const removeCount = 5 + Math.floor(random() * 13);
+  const removeCount = 8 + Math.floor(random() * 13);
   deck.splice(0, removeCount);
   return shuffle(deck, random);
 }

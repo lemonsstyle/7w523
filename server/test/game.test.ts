@@ -32,6 +32,11 @@ function cards(ranks: Card["rank"][]): Card[] {
   return ranks.map((rank, index) => ({ id: `${rank}-${index}-${Math.random()}`, rank }));
 }
 
+function randomSequence(values: number[]): () => number {
+  let index = 0;
+  return () => values[index++] ?? 0;
+}
+
 describe("game flow", () => {
   it("creates and joins a room", () => {
     const store = new GameStore(() => 0.1);
@@ -83,6 +88,14 @@ describe("game flow", () => {
     expect(room?.players.P2?.hand).toHaveLength(5);
   });
 
+  it("removes 8 to 20 cards before dealing", () => {
+    const minimumRemovedRoom = startRoomWithRemovalRandom(0);
+    const maximumRemovedRoom = startRoomWithRemovalRandom(0.999);
+
+    expect(minimumRemovedRoom.deck.length).toBe(36);
+    expect(maximumRemovedRoom.deck.length).toBe(24);
+  });
+
   it("can use dice rolls to decide first player", () => {
     const store = new GameStore(() => 0.1);
     const created = store.handle(undefined, { type: "createRoom" });
@@ -127,3 +140,16 @@ describe("game flow", () => {
     expect(state.players.find((player) => player.id === "P2")?.hand).toBeUndefined();
   });
 });
+
+function startRoomWithRemovalRandom(removalRandom: number): Room {
+  const dealRandom = randomSequence([...Array.from({ length: 53 }, () => 0), removalRandom]);
+  const store = new GameStore(() => 0.1);
+  const created = store.handle(undefined, { type: "createRoom" });
+  const joined = store.handle(undefined, { type: "joinRoom", roomId: created.room?.roomId ?? "" });
+  const room = joined.room as Room;
+
+  chooseRps(room, "P1", "rock", dealRandom);
+  chooseRps(room, "P2", "scissors", dealRandom);
+
+  return room;
+}
