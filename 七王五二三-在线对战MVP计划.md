@@ -19,12 +19,38 @@
 - 起牌/pass：玩家管不住可 pass；上一手出牌者获得继续出牌权；双方按回合顺序摸牌直到手牌补满 5 或牌库为空。
 - 胜利规则：任意时刻手牌集齐 `7 + 任意王 + 5 + 2 + 3` 立即胜利；牌库摸完后，先出完手牌者胜利。
 
+## Current Implementation
+
+- 前端在 `client/src/App.tsx` 中集中管理大厅、房间、先手选择、牌桌、结果页和 WebSocket 消息发送。
+- 音效在 `client/src/sound.ts` 中用 Web Audio API 合成，不依赖外部音频文件；不同操作使用不同音色、音高走向和噪声层次。
+- 样式在 `client/src/styles.css` 中统一定义，整体是暗色牌桌、暖黄强调、低饱和红绿辅助的工具型游戏界面。
+- 服务端入口在 `server/src/index.ts`，提供 WebSocket 房间通信和 `/health` 健康检查。
+- 牌局状态机在 `server/src/game.ts`，所有发牌、出牌、pass、补牌、先手方式、断线保留、胜负判定都在服务端执行。
+- 共享规则在 `shared/src/index.ts`，包含标准牌库、牌型分析、牌型比较、特殊胜利和共享消息类型。
+- 测试分为两层：`shared/test/rules.test.ts` 测纯规则，`server/test/game.test.ts` 测房间和回合流程。
+
+## Branch Settings
+
+- `feature/online-mvp` 是标准在线 MVP 分支，适合后续部署到服务器或公网环境。
+- `feature/lan-play` 是局域网本地联机分支，继承 online MVP 功能，并额外让开发服务器和 WebSocket 服务能被局域网设备访问。
+- `feature/lan-play` 新增 `npm run dev:lan`，语义上用于本地局域网试玩；服务端监听 `0.0.0.0` 并打印 LAN WebSocket 地址。
+- 两个分支的玩法设定必须保持一致，包括随机删牌 `8-20` 张、牌型支持范围、胜负条件和先手机制。
+- 如果改动规则、消息类型或状态机，应该同步 cherry-pick 到两个分支；如果只改局域网访问方式，通常只落在 `feature/lan-play`。
+
 ## Interfaces
 
 - WebSocket 消息：`createRoom`、`joinRoom`、`chooseRps`、`playCards`、`pass`、`drawToFive`、`claimSpecialWin`、`restartGame`。
 - 服务端状态：`roomId`、两名玩家、连接状态、牌库、弃牌/已出牌、双方手牌、当前回合、当前待管牌、猜拳状态、胜负结果。
 - 客户端只发送意图和牌 ID；所有洗牌、摸牌、合法性校验、胜负判定都由服务端执行。
 - 断线首版处理为保留房间短时间可重连；超时后对局结束或允许房主重开。
+
+## Known Constraints
+
+- 房间只存在内存中；服务端重启会清空所有房间和正在进行的对局。
+- 首版没有账号、观战、匹配、排行榜、持久化战绩和服务端横向扩展。
+- WebSocket 消息目前只做轻量运行时校验；TypeScript 保证开发期类型，但不能替代完整的网络输入 schema 校验。
+- 当前重开权限只给 `P1`，返回大厅对双方开放；返回后保留短时间重连窗口。
+- 生产部署时需要自己配置静态站点、WebSocket 反向代理、HTTPS/WSS 和进程守护。
 
 ## Test Plan
 

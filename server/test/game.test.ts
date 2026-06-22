@@ -110,6 +110,22 @@ describe("game flow", () => {
     expect(room.currentTurn).toBe("P1");
     expect(room.firstMove.diceRolls.P1).toBe(6);
     expect(room.firstMove.diceRolls.P2).toBe(1);
+    expect(room.lastAction).toContain("摇骰胜出");
+  });
+
+  it("keeps your rps choice visible while hiding the opponent before reveal", () => {
+    const store = new GameStore(() => 0.1);
+    const created = store.handle(undefined, { type: "createRoom" });
+    const joined = store.handle(undefined, { type: "joinRoom", roomId: created.room?.roomId ?? "" });
+    const room = joined.room as Room;
+
+    chooseRps(room, "P1", "scissors");
+
+    const p1State = publicState(room, "P1");
+    const p2State = publicState(room, "P2");
+
+    expect(p1State.firstMove.rpsChoices.P1).toBe("scissors");
+    expect(p2State.firstMove.rpsChoices.P1).toBe("rock");
   });
 
   it("plays, passes, and lets previous player lead", () => {

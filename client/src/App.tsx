@@ -45,8 +45,13 @@ export function App() {
   const [isMuted, setIsMuted] = useState(() => localStorage.getItem(SOUND_KEY) === "true");
   const socketRef = useRef<WebSocket | null>(null);
   const previousStateRef = useRef<PublicRoomState | null>(null);
+  const nameRef = useRef(name);
 
   const wsUrl = useMemo(() => websocketUrl(), []);
+
+  useEffect(() => {
+    nameRef.current = name;
+  }, [name]);
 
   useEffect(() => {
     const socket = new WebSocket(wsUrl);
@@ -64,7 +69,7 @@ export function App() {
           roomId: roomFromUrl,
           playerId: stored.playerId,
           sessionToken: stored.sessionToken,
-          name: name || undefined
+          name: nameRef.current || undefined
         });
       }
     });
@@ -118,7 +123,7 @@ export function App() {
     return () => {
       socket.close();
     };
-  }, [name, wsUrl]);
+  }, [wsUrl]);
 
   const you = state?.players.find((player) => player.id === state.you);
   const opponent = state?.players.find((player) => player.id !== state.you);
@@ -208,10 +213,14 @@ export function App() {
 
   async function copyRoomId(roomId: string) {
     try {
-      await navigator.clipboard.writeText(roomId);
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(roomId);
+      } else {
+        fallbackCopyText(roomId);
+      }
       setCopyStatus(`已复制 ${roomId}`);
     } catch {
-      setError("浏览器没有允许复制。房间号就在标题里，可以手动复制。");
+      setError("浏览器没有允许复制。房间号就在标题和按钮里，可以手动复制。");
     }
   }
 
@@ -870,6 +879,23 @@ function readStoredPlayer(): { roomId?: string; playerId?: PlayerId; sessionToke
     };
   } catch {
     return {};
+  }
+}
+
+function fallbackCopyText(text: string) {
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "true");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.append(textarea);
+  textarea.select();
+
+  const copied = document.execCommand("copy");
+  textarea.remove();
+
+  if (!copied) {
+    throw new Error("copy command failed");
   }
 }
 

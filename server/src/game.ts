@@ -302,8 +302,8 @@ export function publicState(room: Room, viewerId?: PlayerId): PublicRoomState {
     currentTurn: room.currentTurn,
     currentTrick: room.currentTrick,
     lastAction: room.lastAction,
-    rps: sanitizedRps(room.rps, room.phase),
-    firstMove: sanitizedFirstMove(room.firstMove, room.phase),
+    rps: sanitizedRps(room.rps, room.phase, viewerId),
+    firstMove: sanitizedFirstMove(room.firstMove, room.phase, viewerId),
     winner: room.winner,
     canDraw: canDrawNow(room),
     reconnectUntil
@@ -534,7 +534,8 @@ export function startGame(room: Room, firstPlayer: PlayerId, random: () => numbe
   }
 
   const firstName = room.players[firstPlayer]?.name ?? firstPlayer;
-  room.lastAction = `${firstName} 猜拳胜出，先手开始。`;
+  const firstMoveMethod = room.firstMove.mode === "dice" ? "摇骰胜出" : "猜拳胜出";
+  room.lastAction = `${firstName} ${firstMoveMethod}，先手开始。`;
   checkAutomaticSpecialWin(room);
 }
 
@@ -673,21 +674,19 @@ function createSessionToken(random: () => number): string {
   return token;
 }
 
-function sanitizedRps(rps: RpsState, phase: Room["phase"]): RpsState {
+function sanitizedRps(rps: RpsState, phase: Room["phase"], viewerId?: PlayerId): RpsState {
   if (phase !== "rps") {
     return rps;
   }
 
   return {
-    choices: Object.fromEntries(
-      Object.entries(rps.choices).map(([playerId, choice]) => [playerId, choice ? "rock" : undefined])
-    ) as Partial<Record<PlayerId, RpsChoice>>,
+    choices: maskPendingRpsChoices(rps.choices, viewerId),
     winner: rps.winner,
     tieCount: rps.tieCount
   };
 }
 
-function sanitizedFirstMove(firstMove: FirstMoveState, phase: Room["phase"]): FirstMoveState {
+function sanitizedFirstMove(firstMove: FirstMoveState, phase: Room["phase"], viewerId?: PlayerId): FirstMoveState {
   if (phase !== "rps") {
     return firstMove;
   }
@@ -697,13 +696,23 @@ function sanitizedFirstMove(firstMove: FirstMoveState, phase: Room["phase"]): Fi
     rpsChoices:
       firstMove.winner || Object.keys(firstMove.rpsChoices).length === 2
         ? firstMove.rpsChoices
-        : (Object.fromEntries(
-            Object.entries(firstMove.rpsChoices).map(([playerId, choice]) => [playerId, choice ? "rock" : undefined])
-          ) as Partial<Record<PlayerId, RpsChoice>>),
+        : maskPendingRpsChoices(firstMove.rpsChoices, viewerId),
     diceRolls: firstMove.diceRolls,
     winner: firstMove.winner,
     tieCount: firstMove.tieCount
   };
+}
+
+function maskPendingRpsChoices(
+  choices: Partial<Record<PlayerId, RpsChoice>>,
+  viewerId?: PlayerId
+): Partial<Record<PlayerId, RpsChoice>> {
+  return Object.fromEntries(
+    Object.entries(choices).map(([playerId, choice]) => [
+      playerId,
+      playerId === viewerId ? choice : choice ? "rock" : undefined
+    ])
+  ) as Partial<Record<PlayerId, RpsChoice>>;
 }
 
 function describePlayedSet(playedSet: PlayedSet): string {
