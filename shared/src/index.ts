@@ -13,6 +13,7 @@ export type Rank = StandardRank | Joker;
 export type RankValue = StandardRank | "JOKER";
 export type PlayerId = "P1" | "P2";
 export type RpsChoice = "rock" | "paper" | "scissors";
+export type FirstMoveMode = "rps" | "dice";
 export type RoomPhase = "lobby" | "rps" | "playing" | "finished";
 export type CardType = "single" | "pair" | "triple" | "straight" | "bomb";
 
@@ -44,6 +45,14 @@ export interface RpsState {
   tieCount: number;
 }
 
+export interface FirstMoveState {
+  mode: FirstMoveMode;
+  rpsChoices: Partial<Record<PlayerId, RpsChoice>>;
+  diceRolls: Partial<Record<PlayerId, number>>;
+  winner?: PlayerId;
+  tieCount: number;
+}
+
 export interface WinnerState {
   playerId: PlayerId;
   reason: "special" | "emptyHand" | "opponentLeft";
@@ -60,6 +69,7 @@ export interface PublicRoomState {
   currentTrick?: PlayedSet;
   lastAction: string;
   rps: RpsState;
+  firstMove: FirstMoveState;
   winner?: WinnerState;
   canDraw: boolean;
   reconnectUntil?: number;
@@ -69,7 +79,9 @@ export type ClientMessage =
   | { type: "createRoom"; name?: string }
   | { type: "joinRoom"; roomId: string; name?: string; playerId?: PlayerId; sessionToken?: string }
   | { type: "leaveRoom" }
+  | { type: "setFirstMoveMode"; mode: FirstMoveMode }
   | { type: "chooseRps"; choice: RpsChoice }
+  | { type: "rollDice" }
   | { type: "playCards"; cardIds: string[] }
   | { type: "pass" }
   | { type: "drawToFive" }

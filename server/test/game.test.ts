@@ -6,6 +6,7 @@ import {
   pass,
   playCards,
   publicState,
+  rollDice,
   type Room
 } from "../src/game";
 import type { Card } from "@seven-kings-523/shared";
@@ -22,7 +23,8 @@ function makeRoom(): Room {
     discard: [],
     currentTurn: "P1",
     lastAction: "test",
-    rps: { choices: {}, tieCount: 0 }
+    rps: { choices: {}, tieCount: 0 },
+    firstMove: { mode: "rps", rpsChoices: {}, diceRolls: {}, tieCount: 0 }
   };
 }
 
@@ -79,6 +81,22 @@ describe("game flow", () => {
     expect(room?.currentTurn).toBe("P1");
     expect(room?.players.P1?.hand).toHaveLength(5);
     expect(room?.players.P2?.hand).toHaveLength(5);
+  });
+
+  it("can use dice rolls to decide first player", () => {
+    const store = new GameStore(() => 0.1);
+    const created = store.handle(undefined, { type: "createRoom" });
+    const joined = store.handle(undefined, { type: "joinRoom", roomId: created.room?.roomId ?? "" });
+    const room = joined.room as Room;
+
+    store.handle({ roomId: room.roomId, playerId: "P1" }, { type: "setFirstMoveMode", mode: "dice" });
+    rollDice(room, "P1", () => 0.9);
+    rollDice(room, "P2", () => 0.1);
+
+    expect(room.phase).toBe("playing");
+    expect(room.currentTurn).toBe("P1");
+    expect(room.firstMove.diceRolls.P1).toBe(6);
+    expect(room.firstMove.diceRolls.P2).toBe(1);
   });
 
   it("plays, passes, and lets previous player lead", () => {

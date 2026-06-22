@@ -1,4 +1,4 @@
-type SoundName = "lead" | "beat" | "draw" | "pass" | "special" | "button";
+type SoundName = "lead" | "beat" | "draw" | "pass" | "special" | "button" | "start" | "dice";
 type WaveType = OscillatorType;
 
 interface ToneOptions {
@@ -40,6 +40,10 @@ export function playSound(name: SoundName, muted: boolean, repeat = 1): void {
       defeatedPass(context, start);
     } else if (name === "special") {
       royalReturn(context, start);
+    } else if (name === "start") {
+      startGame(context, start);
+    } else if (name === "dice") {
+      diceRoll(context, start);
     } else {
       smallClick(context, start);
     }
@@ -160,6 +164,51 @@ function royalReturn(context: AudioContext, start: number): void {
     });
   });
   noise(context, start + 0.34, 0.12, 0.055, 3200, "highpass");
+}
+
+function startGame(context: AudioContext, start: number): void {
+  tone(context, {
+    frequency: 146,
+    endFrequency: 196,
+    start,
+    duration: 0.28,
+    gain: 0.12,
+    wave: "triangle",
+    filterFrequency: 900
+  });
+  tone(context, {
+    frequency: 392,
+    endFrequency: 523,
+    start: start + 0.08,
+    duration: 0.2,
+    gain: 0.08,
+    wave: "sine",
+    filterFrequency: 2600
+  });
+  noise(context, start + 0.18, 0.08, 0.045, 2800, "highpass");
+}
+
+function diceRoll(context: AudioContext, start: number): void {
+  for (let index = 0; index < 5; index += 1) {
+    const offset = index * 0.045;
+    noise(context, start + offset, 0.035, 0.035, 900 + index * 260, "bandpass");
+    tone(context, {
+      frequency: 150 + index * 34,
+      start: start + offset,
+      duration: 0.04,
+      gain: 0.045,
+      wave: "square",
+      filterFrequency: 1200
+    });
+  }
+  tone(context, {
+    frequency: 330,
+    start: start + 0.24,
+    duration: 0.09,
+    gain: 0.07,
+    wave: "triangle",
+    filterFrequency: 1800
+  });
 }
 
 function smallClick(context: AudioContext, start: number): void {

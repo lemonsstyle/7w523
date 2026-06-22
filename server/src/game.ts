@@ -9,6 +9,8 @@ import {
   sortCards,
   type Card,
   type ClientMessage,
+  type FirstMoveMode,
+  type FirstMoveState,
   type PlayedSet,
   type PlayerId,
   type PublicPlayerState,
@@ -39,6 +41,7 @@ export interface Room {
   currentTrickOwner?: PlayerId;
   lastAction: string;
   rps: RpsState;
+  firstMove: FirstMoveState;
   winner?: WinnerState;
   closedAt?: number;
 }
@@ -79,9 +82,19 @@ export class GameStore {
           room.lastAction = `${player.name} 返回了大厅，房间会短时间保留。`;
           return room;
         });
+      case "setFirstMoveMode":
+        return this.withPlayer(session, (room, player) => {
+          setFirstMoveMode(room, player.id, message.mode);
+          return room;
+        });
       case "chooseRps":
         return this.withPlayer(session, (room, player) => {
           chooseRps(room, player.id, message.choice, this.random);
+          return room;
+        });
+      case "rollDice":
+        return this.withPlayer(session, (room, player) => {
+          rollDice(room, player.id, this.random);
           return room;
         });
       case "playCards":
@@ -177,7 +190,8 @@ export class GameStore {
       deck: [],
       discard: [],
       lastAction: "房间已创建，等待第二位玩家加入。",
-      rps: { choices: {}, tieCount: 0 }
+      rps: { choices: {}, tieCount: 0 },
+      firstMove: makeFirstMoveState("rps")
     };
 
     this.rooms.set(roomId, room);
@@ -223,7 +237,7 @@ export class GameStore {
     if (room.players.P1 && !room.players.P2) {
       room.players.P2 = makePlayer("P2", name, this.random);
       room.phase = "rps";
-      room.lastAction = "两位玩家已就位。请先猜拳决定先手。";
+      room.lastAction = "两位玩家已就位。请选择一种方式决定先手。";
       return {
         playerId: "P2",
         room,
@@ -289,6 +303,7 @@ export function publicState(room: Room, viewerId?: PlayerId): PublicRoomState {
     currentTrick: room.currentTrick,
     lastAction: room.lastAction,
     rps: sanitizedRps(room.rps, room.phase),
+    firstMove: sanitizedFirstMove(room.firstMove, room.phase),
     winner: room.winner,
     canDraw: canDrawNow(room),
     reconnectUntil
@@ -299,26 +314,68 @@ export function chooseRps(room: Room, playerId: PlayerId, choice: RpsChoice, ran
   assertPhase(room, "rps", "现在还不能猜拳。");
   assertPlayer(room, playerId);
 
+  if (room.firstMove.mode !== "rps") {
+    throw new GameError("当前先手方式不是猜拳。");
+  }
+
+  room.firstMove.rpsChoices[playerId] = choice;
   room.rps.choices[playerId] = choice;
   const opponent = opponentOf(playerId);
 
-  if (!room.rps.choices[opponent]) {
-    room.lastAction = `${room.players[playerId]?.name ?? playerId} 已选择，等待对手。`;
+  if (!room.firstMove.rpsChoices[opponent]) {
+    room.lastAction = `${room.players[playerId]?.name ?? playerId} 已亮出手势，等待对手。`;
     return;
   }
 
-  const result = rpsWinner(room.rps.choices.P1 as RpsChoice, room.rps.choices.P2 as RpsChoice);
+  const result = rpsWinner(room.firstMove.rpsChoices.P1 as RpsChoice, room.firstMove.rpsChoices.P2 as RpsChoice);
   if (result === 0) {
-    room.rps = {
-      choices: {},
-      tieCount: room.rps.tieCount + 1
-    };
-    room.lastAction = "猜拳平局，请重新选择。";
+    const tieCount = room.firstMove.tieCount + 1;
+    room.firstMove = { ...makeFirstMoveState("rps"), tieCount };
+    room.rps = { choices: {}, tieCount };
+    room.lastAction = "势均力敌，重新决定先手。";
     return;
   }
 
   const winner: PlayerId = result === 1 ? "P1" : "P2";
+  room.firstMove.winner = winner;
   room.rps.winner = winner;
+  startGame(room, winner, random);
+}
+
+export function rollDice(room: Room, playerId: PlayerId, random: () => number = Math.random): void {
+  assertPhase(room, "rps", "现在还不能摇骰。");
+  assertPlayer(room, playerId);
+
+  if (room.firstMove.mode !== "dice") {
+    throw new GameError("当前先手方式不是摇骰。");
+  }
+
+  if (room.firstMove.diceRolls[playerId]) {
+    throw new GameError("你已经摇过骰子了。");
+  }
+
+  room.firstMove.diceRolls[playerId] = 1 + Math.floor(random() * 6);
+  const opponent = opponentOf(playerId);
+
+  if (!room.firstMove.diceRolls[opponent]) {
+    room.lastAction = `${room.players[playerId]?.name ?? playerId} 已掷出骰子，等待对手。`;
+    return;
+  }
+
+  const p1Roll = room.firstMove.diceRolls.P1 as number;
+  const p2Roll = room.firstMove.diceRolls.P2 as number;
+
+  if (p1Roll === p2Roll) {
+    room.firstMove = {
+      ...makeFirstMoveState("dice"),
+      tieCount: room.firstMove.tieCount + 1
+    };
+    room.lastAction = "骰子点数相同，再掷一次。";
+    return;
+  }
+
+  const winner: PlayerId = p1Roll > p2Roll ? "P1" : "P2";
+  room.firstMove.winner = winner;
   startGame(room, winner, random);
 }
 
@@ -448,7 +505,8 @@ export function restartGame(room: Room, playerId: PlayerId, random: () => number
   room.currentTrickOwner = undefined;
   room.winner = undefined;
   room.rps = { choices: {}, tieCount: 0 };
-  room.lastAction = "新一局已准备好。请猜拳决定先手。";
+  room.firstMove = makeFirstMoveState("rps");
+  room.lastAction = "新一局已准备好。请选择一种方式决定先手。";
 
   void random;
 }
@@ -548,6 +606,24 @@ function assertPlayer(room: Room, playerId: PlayerId): Player {
   return player;
 }
 
+function setFirstMoveMode(room: Room, playerId: PlayerId, mode: FirstMoveMode): void {
+  assertPhase(room, "rps", "对局开始后不能切换先手方式。");
+  assertPlayer(room, playerId);
+
+  room.firstMove = makeFirstMoveState(mode);
+  room.rps = { choices: {}, tieCount: 0 };
+  room.lastAction = mode === "rps" ? "先手方式已切换为猜拳。" : "先手方式已切换为摇骰。";
+}
+
+function makeFirstMoveState(mode: FirstMoveMode): FirstMoveState {
+  return {
+    mode,
+    rpsChoices: {},
+    diceRolls: {},
+    tieCount: 0
+  };
+}
+
 function orderedPlayers(room: Room): Player[] {
   return [room.players.P1, room.players.P2].filter((player): player is Player => Boolean(player));
 }
@@ -608,6 +684,25 @@ function sanitizedRps(rps: RpsState, phase: Room["phase"]): RpsState {
     ) as Partial<Record<PlayerId, RpsChoice>>,
     winner: rps.winner,
     tieCount: rps.tieCount
+  };
+}
+
+function sanitizedFirstMove(firstMove: FirstMoveState, phase: Room["phase"]): FirstMoveState {
+  if (phase !== "rps") {
+    return firstMove;
+  }
+
+  return {
+    mode: firstMove.mode,
+    rpsChoices:
+      firstMove.winner || Object.keys(firstMove.rpsChoices).length === 2
+        ? firstMove.rpsChoices
+        : (Object.fromEntries(
+            Object.entries(firstMove.rpsChoices).map(([playerId, choice]) => [playerId, choice ? "rock" : undefined])
+          ) as Partial<Record<PlayerId, RpsChoice>>),
+    diceRolls: firstMove.diceRolls,
+    winner: firstMove.winner,
+    tieCount: firstMove.tieCount
   };
 }
 

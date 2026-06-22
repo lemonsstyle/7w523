@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   BadgeCheck,
   Clipboard,
   Copy,
+  Dices,
   DoorOpen,
   Hand,
   Home,
@@ -20,6 +21,7 @@ import {
   rankLabel,
   type Card,
   type ClientMessage,
+  type FirstMoveMode,
   type PlayerId,
   type PublicRoomState,
   type RpsChoice,
@@ -142,6 +144,11 @@ export function App() {
     previousStateRef.current = state;
 
     if (!previousState || previousState.roomId !== state.roomId || previousState.you !== state.you) {
+      return;
+    }
+
+    if (previousState.phase === "rps" && state.phase === "playing") {
+      playSound("start", isMuted);
       return;
     }
 
@@ -272,6 +279,7 @@ export function App() {
                 state={state}
                 playerId={playerId}
                 error={error}
+                compact={state.phase === "playing"}
                 copyStatus={copyStatus}
                 onCopyRoomId={() => void copyRoomId(state.roomId)}
                 onLeaveRoom={leaveRoom}
@@ -281,41 +289,56 @@ export function App() {
 
             <section className="play-area">
               <OpponentPanel state={state} opponent={opponent} />
+              {state.phase === "playing" && <FirstMoveReveal state={state} />}
               <TrickPanel state={state} />
 
               {state.phase === "rps" && (
-                <RpsPanel
-                  youReady={Boolean(state.you && state.rps.choices[state.you])}
-                  onChoose={(choice) => emit({ type: "chooseRps", choice })}
+                <FirstMovePanel
+                  state={state}
+                  onModeChange={(mode) => {
+                    playSound(mode === "dice" ? "dice" : "button", isMuted);
+                    emit({ type: "setFirstMoveMode", mode });
+                  }}
+                  onChoose={(choice) => {
+                    playSound("button", isMuted);
+                    emit({ type: "chooseRps", choice });
+                  }}
+                  onRoll={() => {
+                    playSound("dice", isMuted);
+                    emit({ type: "rollDice" });
+                  }}
                 />
               )}
 
               {state.phase === "playing" && you?.hand && (
-                <HandPanel
-                  cards={you.hand}
-                  selectedCards={selectedCards}
-                  selectedIds={selectedIds}
-                  isYourTurn={isYourTurn}
-                  canPass={Boolean(state.currentTrick) && isYourTurn}
-                  canDraw={state.canDraw}
-                  onCardClick={(cardId) => handleCardClick(cardId, isYourTurn)}
-                  onPlay={() => {
-                    playSound("button", isMuted);
-                    emit({ type: "playCards", cardIds: selectedIds });
-                  }}
-                  onPass={() => {
-                    playSound("button", isMuted);
-                    emit({ type: "pass" });
-                  }}
-                  onDraw={() => {
-                    playSound("button", isMuted);
-                    emit({ type: "drawToFive" });
-                  }}
-                  onClaim={() => {
-                    playSound("button", isMuted);
-                    emit({ type: "claimSpecialWin" });
-                  }}
-                />
+                <>
+                  <DeckMeter deckCount={state.deckCount} />
+                  <HandPanel
+                    cards={you.hand}
+                    selectedCards={selectedCards}
+                    selectedIds={selectedIds}
+                    isYourTurn={isYourTurn}
+                    canPass={Boolean(state.currentTrick) && isYourTurn}
+                    canDraw={state.canDraw}
+                    onCardClick={(cardId) => handleCardClick(cardId, isYourTurn)}
+                    onPlay={() => {
+                      playSound("button", isMuted);
+                      emit({ type: "playCards", cardIds: selectedIds });
+                    }}
+                    onPass={() => {
+                      playSound("button", isMuted);
+                      emit({ type: "pass" });
+                    }}
+                    onDraw={() => {
+                      playSound("button", isMuted);
+                      emit({ type: "drawToFive" });
+                    }}
+                    onClaim={() => {
+                      playSound("button", isMuted);
+                      emit({ type: "claimSpecialWin" });
+                    }}
+                  />
+                </>
               )}
 
               {state.phase === "finished" && (
@@ -401,24 +424,25 @@ interface RoomPanelProps {
   state: PublicRoomState;
   playerId?: PlayerId;
   error: string | null;
+  compact: boolean;
   copyStatus: string;
   onCopyRoomId: () => void;
   onLeaveRoom: () => void;
   onRestart: () => void;
 }
 
-function RoomPanel({ state, playerId, error, copyStatus, onCopyRoomId, onLeaveRoom, onRestart }: RoomPanelProps) {
+function RoomPanel({ state, playerId, error, compact, copyStatus, onCopyRoomId, onLeaveRoom, onRestart }: RoomPanelProps) {
   const winner = state.winner ? state.players.find((player) => player.id === state.winner?.playerId) : undefined;
 
   return (
-    <div className="panel-stack">
-      <div className="info-panel">
+    <div className={`panel-stack ${compact ? "is-compact" : ""}`}>
+      <div className="info-panel collapsible-panel">
         <p className="panel-label">状态</p>
         <p className="last-action">{state.lastAction}</p>
         {error && <p className="error-line">{error}</p>}
       </div>
 
-      <div className="info-panel">
+      <div className="info-panel collapsible-panel">
         <p className="panel-label">玩家</p>
         <div className="player-list">
           {state.players.map((player) => (
@@ -488,6 +512,45 @@ function OpponentPanel({
   );
 }
 
+function FirstMoveReveal({ state }: { state: PublicRoomState }) {
+  const winner = state.firstMove.winner ? state.players.find((player) => player.id === state.firstMove.winner) : undefined;
+
+  if (!winner) {
+    return null;
+  }
+
+  return (
+    <div className="first-reveal">
+      <span>{state.firstMove.mode === "dice" ? "骰声落定" : "手势揭晓"}</span>
+      <strong>{winner.name} 先手</strong>
+      {state.firstMove.mode === "dice" ? <DiceResultLine state={state} /> : <RpsResultLine state={state} />}
+    </div>
+  );
+}
+
+function RpsResultLine({ state }: { state: PublicRoomState }) {
+  return (
+    <span className="reveal-detail">
+      {state.players
+        .map((player) => {
+          const choice = state.firstMove.rpsChoices[player.id];
+          return `${player.name} ${choice ? rpsLabel(choice) : "?"}`;
+        })
+        .join(" / ")}
+    </span>
+  );
+}
+
+function DiceResultLine({ state }: { state: PublicRoomState }) {
+  return (
+    <span className="reveal-detail">
+      {state.players
+        .map((player) => `${player.name} ${state.firstMove.diceRolls[player.id] ?? "?"}`)
+        .join(" / ")}
+    </span>
+  );
+}
+
 function TrickPanel({ state }: { state: PublicRoomState }) {
   return (
     <div className="trick-zone">
@@ -509,31 +572,166 @@ function TrickPanel({ state }: { state: PublicRoomState }) {
   );
 }
 
-function RpsPanel({
-  youReady,
-  onChoose
+function FirstMovePanel({
+  state,
+  onModeChange,
+  onChoose,
+  onRoll
 }: {
-  youReady: boolean;
+  state: PublicRoomState;
+  onModeChange: (mode: FirstMoveMode) => void;
   onChoose: (choice: RpsChoice) => void;
+  onRoll: () => void;
+}) {
+  const youReady =
+    state.firstMove.mode === "rps"
+      ? Boolean(state.you && state.firstMove.rpsChoices[state.you])
+      : Boolean(state.you && state.firstMove.diceRolls[state.you]);
+  const opponent = state.players.find((player) => player.id !== state.you);
+
+  return (
+    <div className="first-move-panel">
+      <div className="first-move-header">
+        <div>
+          <p className="panel-label">决定先手</p>
+          <h2>{state.firstMove.mode === "rps" ? "手势对决" : "命运骰盅"}</h2>
+        </div>
+        <div className="mode-switch" role="group" aria-label="选择先手方式">
+          <button
+            type="button"
+            className={state.firstMove.mode === "rps" ? "is-selected-mode" : ""}
+            onClick={() => onModeChange("rps")}
+          >
+            手势
+          </button>
+          <button
+            type="button"
+            className={state.firstMove.mode === "dice" ? "is-selected-mode" : ""}
+            onClick={() => onModeChange("dice")}
+          >
+            骰子
+          </button>
+        </div>
+      </div>
+
+      {state.firstMove.mode === "rps" ? (
+        <div className="rps-actions">
+          <FirstMoveChoice
+            icon={<ShieldAlert size={28} />}
+            title="磐石"
+            subtitle="压住剪刀"
+            active={state.you ? state.firstMove.rpsChoices[state.you] === "rock" : false}
+            onClick={() => onChoose("rock")}
+          />
+          <FirstMoveChoice
+            icon={<Scissors size={28} />}
+            title="断刃"
+            subtitle="切开布阵"
+            active={state.you ? state.firstMove.rpsChoices[state.you] === "scissors" : false}
+            onClick={() => onChoose("scissors")}
+          />
+          <FirstMoveChoice
+            icon={<Hand size={28} />}
+            title="天幕"
+            subtitle="包住磐石"
+            active={state.you ? state.firstMove.rpsChoices[state.you] === "paper" : false}
+            onClick={() => onChoose("paper")}
+          />
+        </div>
+      ) : (
+        <div className="dice-stage">
+          <button type="button" className="dice-button" onClick={onRoll} disabled={youReady}>
+            <Dices size={30} />
+            掷出命运
+          </button>
+          <div className="dice-results">
+            {state.players.map((player) => (
+              <div key={player.id} className="dice-result">
+                <span>{player.name}</span>
+                <strong>{state.firstMove.diceRolls[player.id] ?? "?"}</strong>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <FirstMoveResult state={state} opponentName={opponent?.name ?? "对手"} />
+      <p className="muted-text">{youReady ? "你的选择已锁定，等待对手。" : "双方完成后立即开局。"}</p>
+    </div>
+  );
+}
+
+function FirstMoveChoice({
+  icon,
+  title,
+  subtitle,
+  active,
+  onClick
+}: {
+  icon: ReactNode;
+  title: string;
+  subtitle: string;
+  active: boolean;
+  onClick: () => void;
 }) {
   return (
-    <div className="rps-panel">
-      <p className="panel-label">猜拳</p>
-      <div className="rps-actions">
-        <button type="button" onClick={() => onChoose("rock")}>
-          <ShieldAlert size={18} />
-          石头
-        </button>
-        <button type="button" onClick={() => onChoose("scissors")}>
-          <Scissors size={18} />
-          剪刀
-        </button>
-        <button type="button" onClick={() => onChoose("paper")}>
-          <Hand size={18} />
-          布
-        </button>
+    <button type="button" className={`rps-card ${active ? "is-active-choice" : ""}`} onClick={onClick}>
+      <span className="rps-icon">{icon}</span>
+      <strong>{title}</strong>
+      <span>{subtitle}</span>
+    </button>
+  );
+}
+
+function FirstMoveResult({ state, opponentName }: { state: PublicRoomState; opponentName: string }) {
+  if (state.firstMove.mode === "rps") {
+    const choices = state.players.map((player) => ({
+      player,
+      choice: state.firstMove.rpsChoices[player.id]
+    }));
+
+    if (choices.every((item) => item.choice)) {
+      return (
+        <div className="first-result">
+          {choices.map((item) => (
+            <div key={item.player.id}>
+              <span>{item.player.name}</span>
+              <strong>{item.choice ? rpsLabel(item.choice) : "已锁定"}</strong>
+            </div>
+          ))}
+        </div>
+      );
+    }
+  }
+
+  if (state.firstMove.winner) {
+    const winner = state.players.find((player) => player.id === state.firstMove.winner);
+    return <div className="first-result is-winner">{winner?.name ?? opponentName} 抢到先手</div>;
+  }
+
+  if (state.firstMove.tieCount > 0) {
+    return <div className="first-result">不分胜负，再来一次</div>;
+  }
+
+  return null;
+}
+
+function DeckMeter({ deckCount }: { deckCount: number }) {
+  const maxVisibleDeck = 44;
+  const percent = Math.max(0, Math.min(100, Math.round((deckCount / maxVisibleDeck) * 100)));
+  const label = deckCount <= 7 ? `剩 ${deckCount} 张` : `约 ${Math.max(20, Math.round(percent / 20) * 20)}%`;
+
+  return (
+    <div className="deck-meter" aria-label={`剩余牌堆 ${label}`}>
+      <div className="deck-stack" style={{ ["--deck-fill" as string]: `${percent}%` }}>
+        {Array.from({ length: 5 }).map((_, index) => (
+          <span key={index} />
+        ))}
       </div>
-      <p className="muted-text">{youReady ? "已选择，等待对手。" : "两人都选择后立即开局。"}</p>
+      <div>
+        <p className="panel-label">牌堆</p>
+        <strong>{label}</strong>
+      </div>
     </div>
   );
 }
@@ -704,4 +902,14 @@ function typeLabel(type: NonNullable<PublicRoomState["currentTrick"]>["type"]) {
   };
 
   return labels[type];
+}
+
+function rpsLabel(choice: RpsChoice) {
+  const labels: Record<RpsChoice, string> = {
+    rock: "磐石",
+    scissors: "断刃",
+    paper: "天幕"
+  };
+
+  return labels[choice];
 }
