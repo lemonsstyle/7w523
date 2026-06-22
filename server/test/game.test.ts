@@ -16,15 +16,31 @@ function makeRoom(): Room {
     roomId: "ABC123",
     phase: "playing",
     players: {
-      P1: { id: "P1", name: "P1", sessionToken: "p1-token", connected: true, hand: cards(["7", "7", "4"]) },
-      P2: { id: "P2", name: "P2", sessionToken: "p2-token", connected: true, hand: cards(["5", "5", "6"]) }
+      P1: {
+        id: "P1",
+        name: "P1",
+        hasCustomName: true,
+        sessionToken: "p1-token",
+        connected: true,
+        hand: cards(["7", "7", "4"])
+      },
+      P2: {
+        id: "P2",
+        name: "P2",
+        hasCustomName: true,
+        sessionToken: "p2-token",
+        connected: true,
+        hand: cards(["5", "5", "6"])
+      }
     },
     deck: cards(["A", "K", "Q", "J"]),
     discard: [],
     currentTurn: "P1",
     lastAction: "test",
     rps: { choices: {}, tieCount: 0 },
-    firstMove: { mode: "rps", rpsChoices: {}, diceRolls: {}, tieCount: 0 }
+    firstMove: { mode: "rps", rpsChoices: {}, diceRolls: {}, tieCount: 0 },
+    score: { P1: 0, P2: 0 },
+    rematchReady: {}
   };
 }
 
@@ -46,6 +62,8 @@ describe("game flow", () => {
     expect(created.playerId).toBe("P1");
     expect(joined.playerId).toBe("P2");
     expect(joined.room?.phase).toBe("rps");
+    expect(joined.room?.players.P1?.hasCustomName).toBe(true);
+    expect(joined.room?.players.P2?.hasCustomName).toBe(true);
   });
 
   it("requires a matching token to reconnect as an existing player", () => {
@@ -126,6 +144,39 @@ describe("game flow", () => {
 
     expect(p1State.firstMove.rpsChoices.P1).toBe("scissors");
     expect(p2State.firstMove.rpsChoices.P1).toBe("rock");
+  });
+
+  it("tracks score and waits for both players before a rematch", () => {
+    const store = new GameStore(() => 0.1);
+    const created = store.handle(undefined, { type: "createRoom", name: "Alpha" });
+    const joined = store.handle(undefined, { type: "joinRoom", roomId: created.room?.roomId ?? "", name: "Beta" });
+    const room = joined.room as Room;
+
+    room.phase = "playing";
+    room.deck = [];
+    room.currentTurn = "P1";
+    room.players.P1!.hand = cards(["7"]);
+    room.players.P2!.hand = cards(["5"]);
+
+    playCards(room, "P1", [room.players.P1?.hand[0]?.id ?? ""]);
+
+    expect(room.phase).toBe("finished");
+    expect(room.score.P1).toBe(1);
+    expect(room.score.P2).toBe(0);
+
+    store.handle({ roomId: room.roomId, playerId: "P1" }, { type: "readyForRematch" });
+
+    expect(room.phase).toBe("finished");
+    expect(room.rematchReady.P1).toBe(true);
+    expect(room.rematchReady.P2).toBeUndefined();
+
+    store.handle({ roomId: room.roomId, playerId: "P2" }, { type: "readyForRematch" });
+
+    expect(room.phase).toBe("rps");
+    expect(room.score.P1).toBe(1);
+    expect(room.rematchReady).toEqual({});
+    expect(room.players.P1?.hand).toHaveLength(0);
+    expect(room.players.P2?.hand).toHaveLength(0);
   });
 
   it("plays, passes, and lets previous player lead", () => {

@@ -33,6 +33,7 @@ export interface PlayedSet {
 export interface PublicPlayerState {
   id: PlayerId;
   name: string;
+  hasCustomName: boolean;
   connected: boolean;
   handCount: number;
   hand?: Card[];
@@ -58,11 +59,16 @@ export interface WinnerState {
   reason: "special" | "emptyHand" | "opponentLeft";
 }
 
+export type ScoreState = Record<PlayerId, number>;
+export type RematchReadyState = Partial<Record<PlayerId, boolean>>;
+
 export interface PublicRoomState {
   roomId: string;
   phase: RoomPhase;
   you?: PlayerId;
   players: PublicPlayerState[];
+  score: ScoreState;
+  rematchReady: RematchReadyState;
   deckCount: number;
   discardCount: number;
   currentTurn?: PlayerId;
@@ -86,6 +92,7 @@ export type ClientMessage =
   | { type: "pass" }
   | { type: "drawToFive" }
   | { type: "claimSpecialWin" }
+  | { type: "readyForRematch" }
   | { type: "restartGame" };
 
 export type ServerMessage =

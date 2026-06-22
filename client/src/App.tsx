@@ -43,8 +43,10 @@ export function App() {
   const [copyStatus, setCopyStatus] = useState("复制房间号");
   const [isConnected, setIsConnected] = useState(false);
   const [isMuted, setIsMuted] = useState(() => localStorage.getItem(SOUND_KEY) === "true");
+  const [showRematchTransition, setShowRematchTransition] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
   const previousStateRef = useRef<PublicRoomState | null>(null);
+  const previousPhaseRef = useRef<PublicRoomState["phase"] | null>(null);
   const nameRef = useRef(name);
 
   const wsUrl = useMemo(() => websocketUrl(), []);
@@ -138,6 +140,21 @@ export function App() {
     const timeout = window.setTimeout(() => setCopyStatus("复制房间号"), 1400);
     return () => window.clearTimeout(timeout);
   }, [copyStatus]);
+
+  useEffect(() => {
+    const previousPhase = previousPhaseRef.current;
+    previousPhaseRef.current = state?.phase ?? null;
+
+    if (previousPhase !== "finished" || state?.phase !== "rps") {
+      return;
+    }
+
+    setShowRematchTransition(true);
+    playSound("draw", isMuted, 4);
+
+    const timeout = window.setTimeout(() => setShowRematchTransition(false), 1500);
+    return () => window.clearTimeout(timeout);
+  }, [isMuted, state?.phase]);
 
   useEffect(() => {
     if (!state || (state.phase !== "playing" && state.phase !== "finished")) {
@@ -247,10 +264,11 @@ export function App() {
     <main className="app-shell">
       <section className="table-surface" aria-live="polite">
         <header className="topbar">
-          <div>
+          <div className="topbar-title">
             <p className="eyebrow">七王五二三</p>
             <h1>{state ? `房间 ${state.roomId}` : "双人在线对战"}</h1>
           </div>
+          {state && <Scoreboard state={state} />}
           <div className="topbar-actions">
             <button
               type="button"
@@ -292,7 +310,6 @@ export function App() {
                 copyStatus={copyStatus}
                 onCopyRoomId={() => void copyRoomId(state.roomId)}
                 onLeaveRoom={leaveRoom}
-                onRestart={() => emit({ type: "restartGame" })}
               />
             </aside>
 
@@ -351,11 +368,18 @@ export function App() {
               )}
 
               {state.phase === "finished" && (
-                <ResultPanel state={state} onRestart={() => emit({ type: "restartGame" })} />
+                <ResultPanel
+                  state={state}
+                  onReady={() => {
+                    playSound("button", isMuted);
+                    emit({ type: "readyForRematch" });
+                  }}
+                />
               )}
             </section>
           </div>
         )}
+        {showRematchTransition && <RematchTransition />}
       </section>
     </main>
   );
@@ -429,6 +453,26 @@ function ConnectionPill({ connected }: { connected: boolean }) {
   );
 }
 
+function Scoreboard({ state }: { state: PublicRoomState }) {
+  const [left, right] = state.players;
+
+  if (!left?.hasCustomName || !right?.hasCustomName) {
+    return null;
+  }
+
+  return (
+    <div className="scoreboard" aria-label={`${left.name} 对 ${right.name} 总比分 ${state.score.P1} 比 ${state.score.P2}`}>
+      <span>{left.name}</span>
+      <strong>
+        {state.score.P1}
+        <span>:</span>
+        {state.score.P2}
+      </strong>
+      <span>{right.name}</span>
+    </div>
+  );
+}
+
 interface RoomPanelProps {
   state: PublicRoomState;
   playerId?: PlayerId;
@@ -437,10 +481,9 @@ interface RoomPanelProps {
   copyStatus: string;
   onCopyRoomId: () => void;
   onLeaveRoom: () => void;
-  onRestart: () => void;
 }
 
-function RoomPanel({ state, playerId, error, compact, copyStatus, onCopyRoomId, onLeaveRoom, onRestart }: RoomPanelProps) {
+function RoomPanel({ state, playerId, error, compact, copyStatus, onCopyRoomId, onLeaveRoom }: RoomPanelProps) {
   const winner = state.winner ? state.players.find((player) => player.id === state.winner?.playerId) : undefined;
 
   return (
@@ -484,10 +527,6 @@ function RoomPanel({ state, playerId, error, compact, copyStatus, onCopyRoomId, 
         </div>
       )}
 
-      <button type="button" onClick={onRestart} disabled={state.phase !== "finished" || state.you !== "P1"}>
-        <RotateCcw size={18} />
-        房主重开
-      </button>
       <button type="button" onClick={onLeaveRoom}>
         <Home size={18} />
         返回大厅
@@ -802,18 +841,41 @@ function HandPanel(props: HandPanelProps) {
   );
 }
 
-function ResultPanel({ state, onRestart }: { state: PublicRoomState; onRestart: () => void }) {
+function ResultPanel({ state, onReady }: { state: PublicRoomState; onReady: () => void }) {
   const winner = state.players.find((player) => player.id === state.winner?.playerId);
+  const youReady = Boolean(state.you && state.rematchReady[state.you]);
 
   return (
     <div className="result-panel">
       <BadgeCheck size={32} />
       <h2>{winner?.name ?? "胜者"} 赢了</h2>
       <p>{state.lastAction}</p>
-      <button type="button" className="primary-action" onClick={onRestart} disabled={state.you !== "P1"}>
+      <div className="rematch-readiness" aria-label="再来一局准备状态">
+        {state.players.map((player) => (
+          <span key={player.id} className={state.rematchReady[player.id] ? "is-ready" : ""}>
+            {player.name}
+            <strong>{state.rematchReady[player.id] ? "已准备" : "等待"}</strong>
+          </span>
+        ))}
+      </div>
+      <button type="button" className="primary-action" onClick={onReady} disabled={!state.you || youReady}>
         <RotateCcw size={18} />
-        再来一局
+        {youReady ? "等待对方" : "再来一局"}
       </button>
+    </div>
+  );
+}
+
+function RematchTransition() {
+  return (
+    <div className="rematch-transition" role="status" aria-live="assertive">
+      <div className="shuffle-stack" aria-hidden="true">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <span key={index} />
+        ))}
+      </div>
+      <strong>洗牌中</strong>
+      <span>抽去暗牌，重新决定先手。</span>
     </div>
   );
 }

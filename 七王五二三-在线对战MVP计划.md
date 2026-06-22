@@ -18,6 +18,7 @@
 - 顺子规则：只允许普通牌参与，即 `A,4,6,8,9,10,J,Q,K`，长度至少 3。
 - 起牌/pass：玩家管不住可 pass；上一手出牌者获得继续出牌权；双方按回合顺序摸牌直到手牌补满 5 或牌库为空。
 - 胜利规则：任意时刻手牌集齐 `7 + 任意王 + 5 + 2 + 3` 立即胜利；牌库摸完后，先出完手牌者胜利。
+- 局分与再战：双方都输入用户名时显示当前房间总比分；本局结束后双方都确认“再来一局”才重置到先手阶段。
 
 ## Current Implementation
 
@@ -39,8 +40,8 @@
 
 ## Interfaces
 
-- WebSocket 消息：`createRoom`、`joinRoom`、`chooseRps`、`playCards`、`pass`、`drawToFive`、`claimSpecialWin`、`restartGame`。
-- 服务端状态：`roomId`、两名玩家、连接状态、牌库、弃牌/已出牌、双方手牌、当前回合、当前待管牌、猜拳状态、胜负结果。
+- WebSocket 消息：`createRoom`、`joinRoom`、`chooseRps`、`playCards`、`pass`、`drawToFive`、`claimSpecialWin`、`readyForRematch`、`restartGame`。
+- 服务端状态：`roomId`、两名玩家、连接状态、局分、再战准备、牌库、弃牌/已出牌、双方手牌、当前回合、当前待管牌、猜拳状态、胜负结果。
 - 客户端只发送意图和牌 ID；所有洗牌、摸牌、合法性校验、胜负判定都由服务端执行。
 - 断线首版处理为保留房间短时间可重连；超时后对局结束或允许房主重开。
 

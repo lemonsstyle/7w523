@@ -16,14 +16,17 @@ import {
   type PublicPlayerState,
   type PublicRoomState,
   type RankValue,
+  type RematchReadyState,
   type RpsChoice,
   type RpsState,
+  type ScoreState,
   type WinnerState
 } from "@seven-kings-523/shared";
 
 export interface Player {
   id: PlayerId;
   name: string;
+  hasCustomName: boolean;
   sessionToken: string;
   connected: boolean;
   hand: Card[];
@@ -42,6 +45,8 @@ export interface Room {
   lastAction: string;
   rps: RpsState;
   firstMove: FirstMoveState;
+  score: ScoreState;
+  rematchReady: RematchReadyState;
   winner?: WinnerState;
   closedAt?: number;
 }
@@ -117,6 +122,11 @@ export class GameStore {
           claimSpecialWin(room, player.id);
           return room;
         });
+      case "readyForRematch":
+        return this.withPlayer(session, (room, player) => {
+          readyForRematch(room, player.id);
+          return room;
+        });
       case "restartGame":
         return this.withPlayer(session, (room, player) => {
           restartGame(room, player.id, this.random);
@@ -171,6 +181,8 @@ export class GameStore {
         playerId: opponentId,
         reason: "opponentLeft"
       };
+      room.score[opponentId] += 1;
+      room.rematchReady = {};
       room.currentTurn = undefined;
       room.lastAction = `${expiredPlayer.name} 未能及时重连，对局结束。`;
       changed.push(room);
@@ -191,7 +203,9 @@ export class GameStore {
       discard: [],
       lastAction: "房间已创建，等待第二位玩家加入。",
       rps: { choices: {}, tieCount: 0 },
-      firstMove: makeFirstMoveState("rps")
+      firstMove: makeFirstMoveState("rps"),
+      score: makeScoreState(),
+      rematchReady: {}
     };
 
     this.rooms.set(roomId, room);
@@ -225,6 +239,7 @@ export class GameStore {
       player.reconnectUntil = undefined;
       if (name?.trim()) {
         player.name = sanitizeName(name, reconnectPlayerId);
+        player.hasCustomName = true;
       }
       room.lastAction = `${player.name} 已重新连接。`;
       return {
@@ -282,6 +297,7 @@ export function publicState(room: Room, viewerId?: PlayerId): PublicRoomState {
   const players = orderedPlayers(room).map<PublicPlayerState>((player) => ({
     id: player.id,
     name: player.name,
+    hasCustomName: player.hasCustomName,
     connected: player.connected,
     handCount: player.hand.length,
     hand: player.id === viewerId ? sortCards(player.hand) : undefined,
@@ -297,6 +313,8 @@ export function publicState(room: Room, viewerId?: PlayerId): PublicRoomState {
     phase: room.phase,
     you: viewerId,
     players,
+    score: room.score,
+    rematchReady: room.rematchReady,
     deckCount: room.deck.length,
     discardCount: room.discard.length,
     currentTurn: room.currentTurn,
@@ -495,20 +513,25 @@ export function restartGame(room: Room, playerId: PlayerId, random: () => number
     throw new GameError("需要两位玩家都在房间里才能重开。");
   }
 
-  room.phase = "rps";
-  room.deck = [];
-  room.discard = [];
-  room.players.P1.hand = [];
-  room.players.P2.hand = [];
-  room.currentTurn = undefined;
-  room.currentTrick = undefined;
-  room.currentTrickOwner = undefined;
-  room.winner = undefined;
-  room.rps = { choices: {}, tieCount: 0 };
-  room.firstMove = makeFirstMoveState("rps");
-  room.lastAction = "新一局已准备好。请选择一种方式决定先手。";
+  resetForFirstMove(room);
 
   void random;
+}
+
+export function readyForRematch(room: Room, playerId: PlayerId): void {
+  assertPhase(room, "finished", "本局还没有结束。");
+  assertPlayer(room, playerId);
+
+  room.rematchReady[playerId] = true;
+
+  if (room.rematchReady.P1 && room.rematchReady.P2) {
+    resetForFirstMove(room);
+    room.lastAction = "双方都选择再来一局。洗牌完成，重新决定先手。";
+    return;
+  }
+
+  const playerName = room.players[playerId]?.name ?? playerId;
+  room.lastAction = `${playerName} 已准备再来一局，等待对手。`;
 }
 
 export function startGame(room: Room, firstPlayer: PlayerId, random: () => number): void {
@@ -578,6 +601,8 @@ function finish(room: Room, playerId: PlayerId, reason: WinnerState["reason"], l
     room.discard.push(...room.currentTrick.cards);
   }
 
+  room.score[playerId] += 1;
+  room.rematchReady = {};
   room.phase = "finished";
   room.currentTurn = undefined;
   room.currentTrick = undefined;
@@ -625,6 +650,32 @@ function makeFirstMoveState(mode: FirstMoveMode): FirstMoveState {
   };
 }
 
+function makeScoreState(): ScoreState {
+  return {
+    P1: 0,
+    P2: 0
+  };
+}
+
+function resetForFirstMove(room: Room): void {
+  const playerOne = assertPlayer(room, "P1");
+  const playerTwo = assertPlayer(room, "P2");
+
+  room.phase = "rps";
+  room.deck = [];
+  room.discard = [];
+  playerOne.hand = [];
+  playerTwo.hand = [];
+  room.currentTurn = undefined;
+  room.currentTrick = undefined;
+  room.currentTrickOwner = undefined;
+  room.winner = undefined;
+  room.rematchReady = {};
+  room.rps = { choices: {}, tieCount: 0 };
+  room.firstMove = makeFirstMoveState("rps");
+  room.lastAction = "新一局已准备好。请选择一种方式决定先手。";
+}
+
 function orderedPlayers(room: Room): Player[] {
   return [room.players.P1, room.players.P2].filter((player): player is Player => Boolean(player));
 }
@@ -634,9 +685,11 @@ function opponentOf(playerId: PlayerId): PlayerId {
 }
 
 function makePlayer(id: PlayerId, name: string | undefined, random: () => number): Player {
+  const trimmedName = name?.trim();
   return {
     id,
-    name: sanitizeName(name, id),
+    name: sanitizeName(trimmedName, id),
+    hasCustomName: Boolean(trimmedName),
     sessionToken: createSessionToken(random),
     connected: true,
     hand: []
