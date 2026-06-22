@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { networkInterfaces } from "node:os";
 import { WebSocketServer, type WebSocket } from "ws";
 import { GameError, GameStore, publicState, type Room } from "./game.js";
 import type { ClientMessage, PlayerId, ServerMessage } from "@seven-kings-523/shared";
@@ -9,6 +10,7 @@ interface ClientSession {
 }
 
 const port = Number(process.env.PORT ?? 8787);
+const host = process.env.HOST ?? "0.0.0.0";
 const store = new GameStore();
 const sessions = new Map<WebSocket, ClientSession>();
 
@@ -101,8 +103,11 @@ setInterval(() => {
   }
 }, 5_000).unref();
 
-server.listen(port, () => {
+server.listen(port, host, () => {
   console.log(`Seven Kings 523 server listening on ws://localhost:${port}`);
+  for (const address of localNetworkAddresses()) {
+    console.log(`LAN WebSocket: ws://${address}:${port}`);
+  }
 });
 
 function broadcastRoom(room: Room): void {
@@ -147,4 +152,11 @@ function errorMessage(error: unknown): string {
 
   console.error(error);
   return "服务端遇到未预期错误。";
+}
+
+function localNetworkAddresses(): string[] {
+  return Object.values(networkInterfaces())
+    .flatMap((interfaces) => interfaces ?? [])
+    .filter((networkInterface) => networkInterface.family === "IPv4" && !networkInterface.internal)
+    .map((networkInterface) => networkInterface.address);
 }
