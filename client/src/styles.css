@@ -411,17 +411,14 @@ label {
 }
 
 .first-reveal {
-  min-height: 50px;
-  padding: 10px 14px;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px 14px;
+  display: grid;
+  gap: 6px;
   border: 1px solid rgba(217, 255, 159, 0.2);
   border-radius: 10px;
+  padding: 12px;
   color: rgba(245, 240, 223, 0.72);
   background: rgba(110, 168, 78, 0.12);
-  animation: reveal-in 420ms ease both, reveal-out 520ms ease 9400ms forwards;
+  animation: reveal-in 420ms ease both, reveal-out 520ms ease 19400ms forwards;
 }
 
 .first-reveal strong {
@@ -431,6 +428,7 @@ label {
 .reveal-detail {
   color: rgba(245, 240, 223, 0.58);
   font-size: 13px;
+  line-height: 1.45;
 }
 
 @keyframes reveal-in {
@@ -702,6 +700,23 @@ label {
 .hand-zone {
   display: grid;
   gap: 14px;
+  transition: border-color 220ms ease, background 220ms ease, box-shadow 220ms ease;
+}
+
+.hand-zone.is-your-turn {
+  border-color: rgba(217, 255, 159, 0.28);
+  background:
+    linear-gradient(90deg, rgba(217, 255, 159, 0.095), rgba(245, 240, 223, 0.045) 44%),
+    rgba(245, 240, 223, 0.045);
+  box-shadow: inset 3px 0 0 rgba(217, 255, 159, 0.46);
+}
+
+.hand-zone.is-opponent-turn {
+  border-color: rgba(245, 240, 223, 0.1);
+  background:
+    linear-gradient(90deg, rgba(245, 240, 223, 0.035), rgba(0, 0, 0, 0.055)),
+    rgba(245, 240, 223, 0.035);
+  box-shadow: inset 3px 0 0 rgba(245, 240, 223, 0.14);
 }
 
 .game-grid.is-endgame .hand-zone {
@@ -761,11 +776,11 @@ label {
 
 .card-corner {
   position: absolute;
-  display: grid;
-  justify-items: center;
-  gap: 1px;
+  display: block;
   line-height: 1;
-  opacity: 0.68;
+  opacity: 0.48;
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .card-corner-top {
@@ -773,27 +788,11 @@ label {
   left: 8px;
 }
 
-.card-corner-bottom {
-  right: 8px;
-  bottom: 8px;
-  transform: rotate(180deg);
-}
-
-.card-mini-rank {
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.card-mini-suit {
-  font-size: 13px;
-  font-weight: 700;
-}
-
 .playing-card.is-joker .card-face {
   font-size: 22px;
 }
 
-.playing-card.is-joker .card-mini-suit {
+.playing-card.is-joker .card-corner {
   font-size: 10px;
 }
 

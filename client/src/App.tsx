@@ -152,7 +152,7 @@ export function App() {
     }
 
     setShowFirstMoveReveal(true);
-    const timeout = window.setTimeout(() => setShowFirstMoveReveal(false), 10_000);
+    const timeout = window.setTimeout(() => setShowFirstMoveReveal(false), 20_000);
     return () => window.clearTimeout(timeout);
   }, [state?.firstMove.winner, state?.phase]);
 
@@ -328,6 +328,7 @@ export function App() {
                 playerId={playerId}
                 error={error}
                 compact={state.phase === "playing"}
+                showFirstMoveReveal={state.phase === "playing" && showFirstMoveReveal}
                 copyStatus={copyStatus}
                 onCopyRoomId={() => void copyRoomId(state.roomId)}
                 onLeaveRoom={leaveRoom}
@@ -336,7 +337,6 @@ export function App() {
 
             <section className="play-area">
               <OpponentPanel state={state} opponent={opponent} />
-              {state.phase === "playing" && showFirstMoveReveal && <FirstMoveReveal state={state} />}
               <TrickPanel state={state} />
 
               {state.phase === "rps" && (
@@ -499,12 +499,22 @@ interface RoomPanelProps {
   playerId?: PlayerId;
   error: string | null;
   compact: boolean;
+  showFirstMoveReveal: boolean;
   copyStatus: string;
   onCopyRoomId: () => void;
   onLeaveRoom: () => void;
 }
 
-function RoomPanel({ state, playerId, error, compact, copyStatus, onCopyRoomId, onLeaveRoom }: RoomPanelProps) {
+function RoomPanel({
+  state,
+  playerId,
+  error,
+  compact,
+  showFirstMoveReveal,
+  copyStatus,
+  onCopyRoomId,
+  onLeaveRoom
+}: RoomPanelProps) {
   const winner = state.winner ? state.players.find((player) => player.id === state.winner?.playerId) : undefined;
 
   return (
@@ -540,6 +550,8 @@ function RoomPanel({ state, playerId, error, compact, copyStatus, onCopyRoomId, 
         </button>
         <p className="muted-text">你是 {playerId ?? state.you ?? "未知"}。</p>
       </div>
+
+      {showFirstMoveReveal && <FirstMoveReveal state={state} />}
 
       {winner && (
         <div className="info-panel result-mini">
@@ -822,7 +834,7 @@ interface HandPanelProps {
 
 function HandPanel(props: HandPanelProps) {
   return (
-    <div className="hand-zone">
+    <div className={`hand-zone ${props.isYourTurn ? "is-your-turn" : "is-opponent-turn"}`}>
       <div className="hand-header">
         <div>
           <p className="panel-label">你的手牌</p>
@@ -946,7 +958,6 @@ function PlayingCard({
   const isJoker = card.rank === "small-joker" || card.rank === "big-joker";
   const isRed = card.suit === "hearts" || card.rank === "big-joker";
   const label = cardLabel(card);
-  const miniRank = isJoker ? (card.rank === "small-joker" ? "小" : "大") : label;
   const suit = suitGlyph(card);
 
   return (
@@ -958,14 +969,9 @@ function PlayingCard({
       aria-pressed={selected}
     >
       <span className="card-corner card-corner-top" aria-hidden="true">
-        <span className="card-mini-rank">{miniRank}</span>
-        <span className="card-mini-suit">{suit}</span>
+        {suit}
       </span>
       <span className="card-face">{label}</span>
-      <span className="card-corner card-corner-bottom" aria-hidden="true">
-        <span className="card-mini-rank">{miniRank}</span>
-        <span className="card-mini-suit">{suit}</span>
-      </span>
     </button>
   );
 }
