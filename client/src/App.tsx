@@ -45,6 +45,7 @@ export function App() {
   const [isConnected, setIsConnected] = useState(false);
   const [isMuted, setIsMuted] = useState(() => localStorage.getItem(SOUND_KEY) === "true");
   const [showRematchTransition, setShowRematchTransition] = useState(false);
+  const [showFirstMoveReveal, setShowFirstMoveReveal] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
   const previousStateRef = useRef<PublicRoomState | null>(null);
   const previousPhaseRef = useRef<PublicRoomState["phase"] | null>(null);
@@ -133,6 +134,7 @@ export function App() {
   const selectedCards = you?.hand?.filter((card) => selectedIds.includes(card.id)) ?? [];
   const selectedSet = analyzeCards(selectedCards);
   const isYourTurn = state?.phase === "playing" && state.currentTurn === state.you;
+  const isEndgame = state?.phase === "playing" && state.deckCount <= 7;
 
   useEffect(() => {
     if (!copyStatus.startsWith("已复制")) {
@@ -142,6 +144,17 @@ export function App() {
     const timeout = window.setTimeout(() => setCopyStatus("复制房间号"), 1400);
     return () => window.clearTimeout(timeout);
   }, [copyStatus]);
+
+  useEffect(() => {
+    if (state?.phase !== "playing" || !state.firstMove.winner) {
+      setShowFirstMoveReveal(false);
+      return;
+    }
+
+    setShowFirstMoveReveal(true);
+    const timeout = window.setTimeout(() => setShowFirstMoveReveal(false), 10_000);
+    return () => window.clearTimeout(timeout);
+  }, [state?.firstMove.winner, state?.phase]);
 
   useEffect(() => {
     const previousPhase = previousPhaseRef.current;
@@ -308,7 +321,7 @@ export function App() {
             onJoin={joinRoom}
           />
         ) : (
-          <div className="game-grid">
+          <div className={`game-grid ${isEndgame ? "is-endgame" : ""}`}>
             <aside className="side-panel">
               <RoomPanel
                 state={state}
@@ -323,7 +336,7 @@ export function App() {
 
             <section className="play-area">
               <OpponentPanel state={state} opponent={opponent} />
-              {state.phase === "playing" && <FirstMoveReveal state={state} />}
+              {state.phase === "playing" && showFirstMoveReveal && <FirstMoveReveal state={state} />}
               <TrickPanel state={state} />
 
               {state.phase === "rps" && (
@@ -346,7 +359,7 @@ export function App() {
 
               {state.phase === "playing" && you?.hand && (
                 <>
-                  <DeckMeter deckCount={state.deckCount} />
+                  <DeckMeter deckCount={state.deckCount} endgame={isEndgame} />
                   <HandPanel
                     cards={you.hand}
                     selectedCards={selectedCards}
@@ -526,7 +539,7 @@ function RoomPanel({ state, playerId, error, compact, copyStatus, onCopyRoomId, 
           <Copy size={16} />
           {copyStatus}
         </button>
-        <p className="muted-text">你是 {playerId ?? state.you ?? "未知"}。牌库 {state.deckCount} 张，弃牌 {state.discardCount} 张。</p>
+        <p className="muted-text">你是 {playerId ?? state.you ?? "未知"}。</p>
       </div>
 
       {winner && (
@@ -773,21 +786,22 @@ function FirstMoveResult({ state, opponentName }: { state: PublicRoomState; oppo
   return null;
 }
 
-function DeckMeter({ deckCount }: { deckCount: number }) {
+function DeckMeter({ deckCount, endgame }: { deckCount: number; endgame: boolean }) {
   const maxVisibleDeck = 44;
   const percent = Math.max(0, Math.min(100, Math.round((deckCount / maxVisibleDeck) * 100)));
   const label = deckCount <= 7 ? `剩 ${deckCount} 张` : `约 ${Math.max(20, Math.round(percent / 20) * 20)}%`;
 
   return (
-    <div className="deck-meter" aria-label={`剩余牌堆 ${label}`}>
+    <div className={`deck-meter ${endgame ? "is-endgame" : ""}`} aria-label={`剩余牌堆 ${label}`}>
       <div className="deck-stack" style={{ ["--deck-fill" as string]: `${percent}%` }}>
         {Array.from({ length: 5 }).map((_, index) => (
           <span key={index} />
         ))}
       </div>
       <div>
-        <p className="panel-label">牌堆</p>
+        <p className="panel-label">{endgame ? "终局牌堆" : "牌堆"}</p>
         <strong>{label}</strong>
+        {endgame && <span className="deck-warning">最终决战将至</span>}
       </div>
     </div>
   );

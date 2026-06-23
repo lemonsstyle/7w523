@@ -277,6 +277,11 @@ label {
   display: grid;
   grid-template-columns: 300px 1fr;
   min-height: calc(100vh - 145px);
+  transition: grid-template-columns 260ms ease;
+}
+
+.game-grid.is-endgame {
+  grid-template-columns: 260px 1fr;
 }
 
 .side-panel {
@@ -353,6 +358,12 @@ label {
   display: grid;
   align-content: start;
   gap: 18px;
+  transition: gap 260ms ease, padding 260ms ease;
+}
+
+.game-grid.is-endgame .play-area {
+  padding: 16px;
+  gap: 12px;
 }
 
 .opponent-band,
@@ -362,6 +373,13 @@ label {
   border-radius: 12px;
   padding: 18px;
   background: rgba(245, 240, 223, 0.045);
+}
+
+.game-grid.is-endgame .opponent-band,
+.game-grid.is-endgame .hand-zone,
+.game-grid.is-endgame .trick-zone {
+  border-color: rgba(246, 197, 83, 0.22);
+  background: rgba(245, 240, 223, 0.035);
 }
 
 .opponent-band {
@@ -382,7 +400,7 @@ label {
   border-radius: 10px;
   color: rgba(245, 240, 223, 0.72);
   background: rgba(110, 168, 78, 0.12);
-  animation: reveal-in 420ms ease both;
+  animation: reveal-in 420ms ease both, reveal-out 520ms ease 9400ms forwards;
 }
 
 .first-reveal strong {
@@ -402,6 +420,13 @@ label {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes reveal-out {
+  to {
+    opacity: 0;
+    transform: translateY(-8px);
   }
 }
 
@@ -580,13 +605,32 @@ label {
   display: inline-flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 12px;
+  padding: 8px 10px;
   border: 1px solid rgba(245, 240, 223, 0.12);
   border-radius: 10px;
   background: rgba(0, 0, 0, 0.16);
+  transition: border-color 220ms ease, background 220ms ease, transform 220ms ease;
 }
 
 .deck-meter strong {
+  white-space: nowrap;
+}
+
+.deck-meter.is-endgame {
+  border-color: rgba(246, 197, 83, 0.48);
+  background: rgba(246, 197, 83, 0.1);
+  transform: translateY(-2px);
+}
+
+.deck-meter.is-endgame strong {
+  color: #f6c553;
+}
+
+.deck-warning {
+  display: block;
+  margin-top: 2px;
+  color: rgba(255, 173, 153, 0.78);
+  font-size: 12px;
   white-space: nowrap;
 }
 
@@ -634,9 +678,17 @@ label {
   gap: 14px;
 }
 
+.game-grid.is-endgame .hand-zone {
+  gap: 10px;
+}
+
 .hand-cards {
   min-height: 138px;
   align-items: end;
+}
+
+.game-grid.is-endgame .hand-cards {
+  min-height: 118px;
 }
 
 .playing-card {
@@ -933,6 +985,10 @@ label {
 
   .entry-layout,
   .game-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .game-grid.is-endgame {
     grid-template-columns: 1fr;
   }
 
