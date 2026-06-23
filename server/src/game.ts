@@ -462,9 +462,10 @@ export function pass(room: Room, playerId: PlayerId): void {
 
 export function drawToFive(room: Room, playerId: PlayerId): void {
   assertPhase(room, "playing", "对局还没有开始。");
+  assertTurn(room, playerId);
 
   if (!canDrawNow(room)) {
-    throw new GameError("现在不能补牌。需要场上没有待管牌，且至少一方手牌不足 5。");
+    throw new GameError("现在不能补牌。需要你拥有出牌权、场上没有待管牌，且至少一方手牌不足 5。");
   }
 
   const actor = assertPlayer(room, playerId);

@@ -362,12 +362,11 @@ export function App() {
                   <DeckMeter deckCount={state.deckCount} endgame={isEndgame} />
                   <HandPanel
                     cards={you.hand}
-                    selectedCards={selectedCards}
                     selectedIds={selectedIds}
                     selectedSetValid={Boolean(selectedSet)}
                     isYourTurn={isYourTurn}
                     canPass={Boolean(state.currentTrick) && isYourTurn}
-                    canDraw={state.canDraw}
+                    canDraw={state.canDraw && isYourTurn}
                     onCardClick={(cardId) => handleCardClick(cardId, isYourTurn)}
                     onPlay={() => {
                       playSound("button", isMuted);
@@ -809,7 +808,6 @@ function DeckMeter({ deckCount, endgame }: { deckCount: number; endgame: boolean
 
 interface HandPanelProps {
   cards: Card[];
-  selectedCards: Card[];
   selectedIds: string[];
   selectedSetValid: boolean;
   isYourTurn: boolean;
@@ -845,19 +843,22 @@ function HandPanel(props: HandPanelProps) {
       </div>
 
       <div className="action-bar">
-        <span className="selection-summary">
-          已选 {props.selectedCards.length} 张{props.selectedCards.length > 0 && !props.selectedSetValid ? " · 组合无效" : ""}
-        </span>
-        <button type="button" className="primary-action" onClick={props.onPlay} disabled={!props.isYourTurn || props.selectedIds.length === 0}>
+        {props.selectedIds.length > 0 && !props.selectedSetValid && <span className="selection-warning">组合无效</span>}
+        <button
+          type="button"
+          className="primary-action play-action"
+          onClick={props.onPlay}
+          disabled={!props.isYourTurn || props.selectedIds.length === 0}
+        >
           出牌
         </button>
-        <button type="button" onClick={props.onPass} disabled={!props.canPass}>
+        <button type="button" className="pass-action" onClick={props.onPass} disabled={!props.canPass}>
           Pass
         </button>
-        <button type="button" onClick={props.onDraw} disabled={!props.canDraw}>
+        <button type="button" className="draw-action" onClick={props.onDraw} disabled={!props.canDraw}>
           补到 5 张
         </button>
-        <button type="button" onClick={props.onClaim}>
+        <button type="button" className="claim-action" onClick={props.onClaim}>
           王座归位
         </button>
       </div>

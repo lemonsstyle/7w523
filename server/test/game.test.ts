@@ -200,6 +200,12 @@ describe("game flow", () => {
     expect(room.deck.length).toBe(0);
   });
 
+  it("only lets the current turn player draw to five", () => {
+    const room = makeRoom();
+
+    expect(() => drawToFive(room, "P2")).toThrow("还没轮到你");
+  });
+
   it("waits for the player to claim a special win", () => {
     const room = makeRoom();
     room.players.P1!.hand = cards(["7", "small-joker", "5", "2"]);

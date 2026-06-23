@@ -69,12 +69,12 @@ input:focus {
 
 .app-shell {
   min-height: 100vh;
-  padding: 24px;
+  padding: 12px;
 }
 
 .table-surface {
-  width: min(1180px, 100%);
-  min-height: calc(100vh - 48px);
+  width: min(1440px, 100%);
+  min-height: calc(100vh - 24px);
   margin: 0 auto;
   border: 1px solid rgba(245, 240, 223, 0.14);
   border-radius: 14px;
@@ -86,8 +86,8 @@ input:focus {
 }
 
 .topbar {
-  min-height: 96px;
-  padding: 24px;
+  min-height: 82px;
+  padding: 18px 22px;
   display: grid;
   grid-template-columns: minmax(180px, 1fr) auto minmax(130px, 1fr);
   align-items: center;
@@ -255,6 +255,10 @@ label {
   gap: 10px;
 }
 
+.action-bar {
+  align-items: center;
+}
+
 .primary-action {
   color: #211908;
   border-color: #f6c553;
@@ -275,17 +279,17 @@ label {
 
 .game-grid {
   display: grid;
-  grid-template-columns: 300px 1fr;
-  min-height: calc(100vh - 145px);
+  grid-template-columns: 260px 1fr;
+  min-height: calc(100vh - 107px);
   transition: grid-template-columns 260ms ease;
 }
 
 .game-grid.is-endgame {
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: 230px 1fr;
 }
 
 .side-panel {
-  padding: 20px;
+  padding: 14px;
   border-right: 1px solid rgba(245, 240, 223, 0.12);
 }
 
@@ -354,16 +358,16 @@ label {
 
 .play-area {
   min-width: 0;
-  padding: 20px;
+  padding: 14px;
   display: grid;
   align-content: start;
-  gap: 18px;
+  gap: 12px;
   transition: gap 260ms ease, padding 260ms ease;
 }
 
 .game-grid.is-endgame .play-area {
-  padding: 16px;
-  gap: 12px;
+  padding: 12px;
+  gap: 10px;
 }
 
 .opponent-band,
@@ -371,7 +375,7 @@ label {
 .trick-zone {
   border: 1px solid rgba(245, 240, 223, 0.12);
   border-radius: 12px;
-  padding: 18px;
+  padding: 14px;
   background: rgba(245, 240, 223, 0.045);
 }
 
@@ -462,7 +466,7 @@ label {
 }
 
 .trick-zone {
-  min-height: 210px;
+  min-height: 176px;
   display: grid;
   align-content: center;
 }
@@ -477,7 +481,7 @@ label {
 
 .empty-trick {
   width: 100%;
-  min-height: 118px;
+  min-height: 94px;
   display: grid;
   place-items: center;
   gap: 8px;
@@ -612,6 +616,11 @@ label {
   transition: border-color 220ms ease, background 220ms ease, transform 220ms ease;
 }
 
+.game-grid.is-endgame .deck-meter {
+  justify-self: center;
+  min-width: 230px;
+}
+
 .deck-meter strong {
   white-space: nowrap;
 }
@@ -737,11 +746,40 @@ label {
   opacity: 0.72;
 }
 
-.selection-summary {
+.selection-warning {
   min-height: 42px;
+  padding: 0 10px;
   display: inline-flex;
   align-items: center;
+  color: #ffad99;
+  border: 1px solid rgba(255, 173, 153, 0.24);
+  border-radius: 8px;
+  background: rgba(221, 48, 48, 0.12);
+  font-size: 13px;
+}
+
+.play-action {
+  min-width: 92px;
+}
+
+.pass-action {
   color: rgba(245, 240, 223, 0.72);
+  border-color: rgba(245, 240, 223, 0.14);
+  background: rgba(245, 240, 223, 0.045);
+}
+
+.draw-action {
+  color: #d9ff9f;
+  border-color: rgba(217, 255, 159, 0.26);
+  background: rgba(110, 168, 78, 0.12);
+}
+
+.claim-action {
+  margin-left: auto;
+  color: #f6c553;
+  border-color: rgba(246, 197, 83, 0.36);
+  background: rgba(246, 197, 83, 0.1);
+  font-weight: 800;
 }
 
 .result-panel {
@@ -955,11 +993,11 @@ label {
 
 @media (max-width: 860px) {
   .app-shell {
-    padding: 12px;
+    padding: 8px;
   }
 
   .table-surface {
-    min-height: calc(100vh - 24px);
+    min-height: calc(100vh - 16px);
     border-radius: 10px;
   }
 
@@ -1016,6 +1054,15 @@ label {
 
   .deck-meter {
     justify-self: stretch;
+  }
+
+  .game-grid.is-endgame .deck-meter {
+    min-width: 0;
+    justify-self: stretch;
+  }
+
+  .claim-action {
+    margin-left: 0;
   }
 
   .special-victory-banner {
