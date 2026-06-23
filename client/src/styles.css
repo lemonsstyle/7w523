@@ -1,4 +1,7 @@
 :root {
+  --card-width: 76px;
+  --card-gap: 10px;
+  --five-card-width: calc(var(--card-width) * 5 + var(--card-gap) * 4);
   color-scheme: dark;
   font-family: "Arial", "PingFang SC", "Hiragino Sans GB", sans-serif;
   background: #161612;
@@ -455,7 +458,7 @@ label {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--card-gap);
   overflow-x: auto;
   padding: 8px 2px;
 }
@@ -463,7 +466,7 @@ label {
 .card-back,
 .playing-card {
   flex: 0 0 auto;
-  width: 76px;
+  width: var(--card-width);
   height: 108px;
   border-radius: 8px;
 }
@@ -486,8 +489,7 @@ label {
   align-content: center;
 }
 
-.trick-header,
-.hand-header {
+.trick-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -805,111 +807,119 @@ label {
 }
 
 .joker-face {
-  --joker-primary: #565954;
-  --joker-accent: #8b8e86;
-  --joker-soft: rgba(86, 89, 84, 0.2);
+  --joker-black: #171817;
+  --joker-primary: #171817;
+  --joker-accent: #ffffff;
+  --joker-metal: #7d7f7c;
+  --joker-smile: #171817;
+  --joker-smile-highlight: #ffffff;
   position: relative;
-  width: 48px;
-  height: 66px;
-  display: grid;
-  justify-items: center;
-  align-content: start;
+  width: 100%;
+  max-width: 58px;
+  aspect-ratio: 120 / 168;
+  height: auto;
+  display: block;
 }
 
 .joker-face.is-big-joker {
-  --joker-primary: #b92525;
+  --joker-primary: #df141f;
   --joker-accent: #f6c553;
-  --joker-soft: rgba(185, 37, 37, 0.16);
+  --joker-metal: #c58a20;
+  --joker-smile: #0d71bd;
+  --joker-smile-highlight: #ffffff;
 }
 
-.joker-hat {
-  position: relative;
-  width: 44px;
-  height: 25px;
+.joker-portrait {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
 }
 
-.joker-hat span {
-  position: absolute;
-  bottom: 0;
-  width: 13px;
-  height: 24px;
-  border-radius: 10px 10px 3px 3px;
-  background: var(--joker-primary);
-  transform-origin: bottom center;
+.joker-sparkle,
+.joker-mini-star,
+.joker-dot,
+.joker-pom,
+.joker-hat-star,
+.joker-hat-dot {
+  fill: var(--joker-metal);
+  stroke: var(--joker-metal);
 }
 
-.joker-hat span:nth-child(1) {
-  left: 2px;
-  transform: rotate(-28deg);
-  background: var(--joker-accent);
+.joker-sparkle {
+  fill: none;
+  stroke-linecap: round;
+  stroke-width: 1.8;
 }
 
-.joker-hat span:nth-child(2) {
-  left: 15px;
-  height: 27px;
+.joker-mini-star {
+  stroke-width: 0;
 }
 
-.joker-hat span:nth-child(3) {
-  right: 2px;
-  transform: rotate(28deg);
-  background: var(--joker-accent);
+.joker-dot,
+.joker-hat-dot {
+  stroke-width: 0;
 }
 
-.joker-head {
-  position: relative;
-  z-index: 1;
-  width: 26px;
-  height: 28px;
-  margin-top: -2px;
-  border: 2px solid var(--joker-primary);
-  border-radius: 50% 50% 45% 45%;
-  background: #f8f1df;
-  box-shadow: 0 0 0 5px var(--joker-soft);
+.joker-pom {
+  stroke-width: 0;
 }
 
-.joker-head::before,
-.joker-head::after {
-  content: "";
-  position: absolute;
-  top: 10px;
-  width: 4px;
-  height: 4px;
-  border-radius: 999px;
-  background: var(--joker-primary);
+.joker-hat-cone {
+  fill: var(--joker-primary);
 }
 
-.joker-head::before {
-  left: 6px;
+.joker-hat-star,
+.joker-hat-dot {
+  fill: var(--joker-accent);
+  stroke: none;
 }
 
-.joker-head::after {
-  right: 6px;
+.joker-hat-brim {
+  fill: #ffffff;
+  stroke: var(--joker-primary);
+  stroke-linejoin: round;
+  stroke-width: 3;
 }
 
-.joker-collar {
-  width: 42px;
-  height: 19px;
-  margin-top: -1px;
-  display: flex;
-  justify-content: center;
-  gap: 2px;
+.joker-brim-stripe {
+  fill: none;
+  stroke: var(--joker-primary);
+  stroke-linecap: round;
+  stroke-width: 3;
 }
 
-.joker-collar span {
-  width: 12px;
-  height: 18px;
-  border-radius: 2px 2px 10px 10px;
-  background: var(--joker-primary);
+.joker-eye,
+.joker-nose {
+  fill: var(--joker-black);
+  stroke: none;
 }
 
-.joker-collar span:nth-child(2) {
-  background: var(--joker-accent);
+.joker-nose {
+  fill: var(--joker-primary);
+}
+
+.joker-nose-glint {
+  fill: #ffffff;
+  opacity: 0.96;
+}
+
+.joker-smile {
+  fill: none;
+  stroke: var(--joker-smile);
+  stroke-linecap: round;
+  stroke-width: 14;
+}
+
+.joker-smile-glint {
+  fill: none;
+  stroke: var(--joker-smile-highlight);
+  stroke-linecap: round;
+  stroke-width: 4;
 }
 
 .joker-face.is-compact {
-  width: 36px;
-  height: 50px;
-  transform: scale(0.72);
+  max-width: 34px;
 }
 
 .selection-warning {
@@ -924,8 +934,16 @@ label {
   font-size: 13px;
 }
 
-.play-action {
-  min-width: 92px;
+.card-action-group {
+  width: min(100%, var(--five-card-width));
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--card-gap);
+}
+
+.card-action-group button {
+  width: 100%;
+  min-width: 0;
 }
 
 .pass-action {
@@ -950,8 +968,9 @@ label {
 
 .result-panel {
   display: grid;
-  justify-items: start;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
+  align-items: stretch;
+  gap: 18px;
 }
 
 .result-panel.is-table-victory {
@@ -968,6 +987,37 @@ label {
   background:
     linear-gradient(135deg, rgba(246, 197, 83, 0.12), transparent 48%),
     rgba(0, 0, 0, 0.18);
+}
+
+.result-victory-stage {
+  min-width: 0;
+  display: grid;
+  align-items: center;
+}
+
+.basic-victory-banner {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+}
+
+.result-rematch-panel {
+  min-width: 0;
+  padding-left: 18px;
+  display: grid;
+  align-content: center;
+  gap: 12px;
+  border-left: 1px solid rgba(245, 240, 223, 0.12);
+}
+
+.result-rematch-panel p {
+  margin-bottom: 0;
+  color: rgba(245, 240, 223, 0.76);
+  line-height: 1.45;
+}
+
+.result-rematch-panel button {
+  width: 100%;
 }
 
 .table-victory-banner {
@@ -1083,7 +1133,7 @@ label {
 }
 
 .sigil-card.is-sigil-joker .joker-face {
-  transform: scale(0.7);
+  max-width: 31px;
 }
 
 @keyframes sigil-card {
@@ -1111,9 +1161,8 @@ label {
 }
 
 .rematch-readiness {
-  width: min(520px, 100%);
+  width: 100%;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -1236,6 +1285,10 @@ label {
 }
 
 @media (max-width: 860px) {
+  :root {
+    --card-width: 66px;
+  }
+
   .app-shell {
     padding: 8px;
   }
@@ -1309,6 +1362,17 @@ label {
     margin-left: 0;
   }
 
+  .result-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .result-rematch-panel {
+    padding-left: 0;
+    padding-top: 16px;
+    border-left: 0;
+    border-top: 1px solid rgba(245, 240, 223, 0.12);
+  }
+
   .special-victory-banner {
     grid-template-columns: 1fr;
   }
@@ -1319,7 +1383,6 @@ label {
 
   .card-back,
   .playing-card {
-    width: 66px;
     height: 96px;
   }
 

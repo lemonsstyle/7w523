@@ -826,14 +826,6 @@ interface HandPanelProps {
 function HandPanel(props: HandPanelProps) {
   return (
     <div className={`hand-zone ${props.isYourTurn ? "is-your-turn" : "is-opponent-turn"}`}>
-      <div className="hand-header">
-        <div>
-          <p className="panel-label">你的手牌</p>
-          <h2>{props.isYourTurn ? "轮到你" : "等待对手"}</h2>
-        </div>
-        <TurnBadge active={props.isYourTurn} />
-      </div>
-
       <div className="hand-cards">
         {props.cards.map((card) => (
           <PlayingCard
@@ -847,20 +839,22 @@ function HandPanel(props: HandPanelProps) {
 
       <div className="action-bar">
         {props.selectedIds.length > 0 && !props.selectedSetValid && <span className="selection-warning">组合无效</span>}
-        <button
-          type="button"
-          className="primary-action play-action"
-          onClick={props.onPlay}
-          disabled={!props.isYourTurn || props.selectedIds.length === 0}
-        >
-          出牌
-        </button>
-        <button type="button" className="pass-action" onClick={props.onPass} disabled={!props.canPass}>
-          Pass
-        </button>
-        <button type="button" className="draw-action" onClick={props.onDraw} disabled={!props.canDraw}>
-          补到 5 张
-        </button>
+        <div className="card-action-group">
+          <button
+            type="button"
+            className="primary-action play-action"
+            onClick={props.onPlay}
+            disabled={!props.isYourTurn || props.selectedIds.length === 0}
+          >
+            出牌
+          </button>
+          <button type="button" className="pass-action" onClick={props.onPass} disabled={!props.canPass}>
+            Pass
+          </button>
+          <button type="button" className="draw-action" onClick={props.onDraw} disabled={!props.canDraw}>
+            补牌
+          </button>
+        </div>
         <button type="button" className="claim-action" onClick={props.onClaim}>
           王座归位
         </button>
@@ -878,29 +872,33 @@ function ResultPanel({ state, onReady }: { state: PublicRoomState; onReady: () =
 
   return (
     <div className={`result-panel ${isSpecialWin ? "is-special-victory" : ""} ${isEmptyHandWin ? "is-table-victory" : ""}`}>
-      {isSpecialWin ? (
-        <SpecialVictoryBanner winnerName={winner?.name ?? "胜者"} didYouWin={didYouWin} />
-      ) : isEmptyHandWin ? (
-        <TableVictoryBanner winnerName={winner?.name ?? "胜者"} didYouWin={didYouWin} />
-      ) : (
-        <>
-          <BadgeCheck size={32} />
-          <h2>{winner?.name ?? "胜者"} 赢了</h2>
-        </>
-      )}
-      <p>{state.lastAction}</p>
-      <div className="rematch-readiness" aria-label="再来一局准备状态">
-        {state.players.map((player) => (
-          <span key={player.id} className={state.rematchReady[player.id] ? "is-ready" : ""}>
-            {player.name}
-            <strong>{state.rematchReady[player.id] ? "已准备" : "等待"}</strong>
-          </span>
-        ))}
+      <div className="result-victory-stage">
+        {isSpecialWin ? (
+          <SpecialVictoryBanner winnerName={winner?.name ?? "胜者"} didYouWin={didYouWin} />
+        ) : isEmptyHandWin ? (
+          <TableVictoryBanner winnerName={winner?.name ?? "胜者"} didYouWin={didYouWin} />
+        ) : (
+          <div className="basic-victory-banner">
+            <BadgeCheck size={32} />
+            <h2>{winner?.name ?? "胜者"} 赢了</h2>
+          </div>
+        )}
       </div>
-      <button type="button" className="primary-action" onClick={onReady} disabled={!state.you || youReady}>
-        <RotateCcw size={18} />
-        {youReady ? "等待对方" : "再来一局"}
-      </button>
+      <div className="result-rematch-panel">
+        <p>{state.lastAction}</p>
+        <div className="rematch-readiness" aria-label="再来一局准备状态">
+          {state.players.map((player) => (
+            <span key={player.id} className={state.rematchReady[player.id] ? "is-ready" : ""}>
+              {player.name}
+              <strong>{state.rematchReady[player.id] ? "已准备" : "等待"}</strong>
+            </span>
+          ))}
+        </div>
+        <button type="button" className="primary-action" onClick={onReady} disabled={!state.you || youReady}>
+          <RotateCcw size={18} />
+          {youReady ? "等待对方" : "再来一局"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -1006,17 +1004,34 @@ function PlayingCard({
 function JokerFace({ variant, compact = false }: { variant: "small" | "big"; compact?: boolean }) {
   return (
     <span className={`joker-face is-${variant}-joker ${compact ? "is-compact" : ""}`} aria-hidden="true">
-      <span className="joker-hat">
-        <span />
-        <span />
-        <span />
-      </span>
-      <span className="joker-head" />
-      <span className="joker-collar">
-        <span />
-        <span />
-        <span />
-      </span>
+      <svg className="joker-portrait" viewBox="0 0 120 168" focusable="false">
+        <g className="joker-sparkles">
+          <path className="joker-sparkle is-top" d="M94 10 L94 34 M82 22 L106 22 M86 14 L102 30 M102 14 L86 30" />
+          <path className="joker-sparkle is-bottom" d="M20 134 L20 160 M7 147 L33 147 M11 138 L29 156 M29 138 L11 156" />
+          <path className="joker-mini-star" d="M25 52 L28 60 L36 63 L28 66 L25 75 L22 66 L14 63 L22 60 Z" />
+          <circle className="joker-dot is-left" cx="15" cy="116" r="3" />
+          <circle className="joker-dot is-right" cx="106" cy="49" r="3" />
+        </g>
+
+        <g className="joker-hat-mark">
+          <circle className="joker-pom" cx="60" cy="20" r="10" />
+          <path className="joker-hat-cone" d="M36 78 L60 24 L84 78 Z" />
+          <path className="joker-hat-star is-center" d="M60 44 L64 55 L76 55 L66 62 L70 73 L60 66 L50 73 L54 62 L44 55 L56 55 Z" />
+          <path className="joker-hat-star is-left" d="M43 60 L46 68 L54 68 L48 73 L51 81 L43 76 L35 81 L38 73 L32 68 L40 68 Z" />
+          <path className="joker-hat-star is-right" d="M76 66 L79 74 L88 74 L81 79 L84 88 L76 83 L69 88 L72 79 L65 74 L73 74 Z" />
+          <circle className="joker-hat-dot" cx="58" cy="82" r="2" />
+          <circle className="joker-hat-dot" cx="69" cy="58" r="2" />
+          <path className="joker-hat-brim" d="M31 80 Q60 70 89 80 L92 91 Q60 82 28 91 Z" />
+          <path className="joker-brim-stripe" d="M38 82 L34 91 M48 78 L46 91 M58 77 L58 90 M68 77 L70 90 M79 80 L84 90" />
+        </g>
+
+        <path className="joker-eye is-left" d="M28 86 C33 96 38 99 49 101 C38 103 33 106 28 117 C23 106 18 103 7 101 C18 99 23 96 28 86 Z" />
+        <path className="joker-eye is-right" d="M92 86 C97 96 102 99 113 101 C102 103 97 106 92 117 C87 106 82 103 71 101 C82 99 87 96 92 86 Z" />
+        <circle className="joker-nose" cx="60" cy="118" r="15" />
+        <circle className="joker-nose-glint" cx="68" cy="111" r="4.5" />
+        <path className="joker-smile" d="M30 137 Q60 160 90 137" />
+        <path className="joker-smile-glint" d="M38 136 Q60 151 82 136" />
+      </svg>
     </span>
   );
 }
