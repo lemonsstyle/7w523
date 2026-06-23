@@ -267,13 +267,6 @@ export function App() {
     }
 
     if (selectedIds.includes(cardId)) {
-      const currentSelection = you?.hand?.filter((card) => selectedIds.includes(card.id)) ?? [];
-      if (analyzeCards(currentSelection)) {
-        playSound("button", isMuted);
-        emit({ type: "playCards", cardIds: selectedIds });
-        return;
-      }
-
       setSelectedIds((current) => current.filter((selectedId) => selectedId !== cardId));
       return;
     }
