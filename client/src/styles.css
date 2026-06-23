@@ -85,6 +85,11 @@ input:focus {
   overflow: hidden;
 }
 
+.table-surface.is-entry {
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
 .topbar {
   min-height: 82px;
   padding: 18px 22px;
@@ -104,12 +109,15 @@ input:focus {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 8px;
 }
 
 .icon-button {
-  width: 42px;
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
   padding: 0;
+  border-radius: 10px;
 }
 
 .eyebrow,
@@ -150,6 +158,12 @@ h2 {
   font-size: 13px;
   border: 1px solid rgba(245, 240, 223, 0.16);
   white-space: nowrap;
+}
+
+.connection-pill {
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
 }
 
 .scoreboard {
@@ -207,18 +221,21 @@ h2 {
 }
 
 .entry-layout {
+  min-height: 100%;
   padding: 32px;
   display: grid;
-  grid-template-columns: 1fr minmax(280px, 420px);
-  gap: 32px;
-  align-items: start;
+  grid-template-columns: minmax(0, 420px);
+  align-content: center;
+  justify-content: center;
+  gap: 18px;
 }
 
 .entry-copy {
-  max-width: 560px;
-  font-size: 18px;
-  line-height: 1.7;
+  max-width: 420px;
+  font-size: 16px;
+  line-height: 1.55;
   color: rgba(245, 240, 223, 0.76);
+  text-align: center;
 }
 
 .status-line {
@@ -703,12 +720,13 @@ label {
 .playing-card {
   position: relative;
   display: grid;
-  align-content: space-between;
-  justify-items: start;
-  padding: 10px;
+  place-items: center;
+  padding: 9px;
   color: #181711;
   border: 2px solid rgba(24, 23, 17, 0.12);
-  background: #f8f1df;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(246, 197, 83, 0.1), transparent 34%),
+    #f8f1df;
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.26);
   transition: transform 140ms ease, border-color 140ms ease;
 }
@@ -733,17 +751,50 @@ label {
   opacity: 1;
 }
 
-.card-rank {
-  font-size: 24px;
+.card-face {
+  font-size: 27px;
   font-weight: 900;
   line-height: 1;
+  letter-spacing: 0;
+  transform: translateY(2px);
 }
 
-.card-suit {
-  justify-self: end;
-  font-size: 15px;
+.card-corner {
+  position: absolute;
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  line-height: 1;
+  opacity: 0.68;
+}
+
+.card-corner-top {
+  top: 8px;
+  left: 8px;
+}
+
+.card-corner-bottom {
+  right: 8px;
+  bottom: 8px;
+  transform: rotate(180deg);
+}
+
+.card-mini-rank {
+  font-size: 11px;
   font-weight: 800;
-  opacity: 0.72;
+}
+
+.card-mini-suit {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.playing-card.is-joker .card-face {
+  font-size: 22px;
+}
+
+.playing-card.is-joker .card-mini-suit {
+  font-size: 10px;
 }
 
 .selection-warning {

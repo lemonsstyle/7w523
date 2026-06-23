@@ -283,7 +283,7 @@ export function App() {
 
   return (
     <main className="app-shell">
-      <section className="table-surface" aria-live="polite">
+      <section className={`table-surface ${state ? "" : "is-entry"}`} aria-live="polite">
         <header className="topbar">
           <div className="topbar-title">
             <p className="eyebrow">七王五二三</p>
@@ -945,6 +945,9 @@ function PlayingCard({
 }) {
   const isJoker = card.rank === "small-joker" || card.rank === "big-joker";
   const isRed = card.suit === "hearts" || card.rank === "big-joker";
+  const label = cardLabel(card);
+  const miniRank = isJoker ? (card.rank === "small-joker" ? "小" : "大") : label;
+  const suit = suitGlyph(card);
 
   return (
     <button
@@ -954,8 +957,15 @@ function PlayingCard({
       disabled={disabled}
       aria-pressed={selected}
     >
-      <span className="card-rank">{cardLabel(card)}</span>
-      <span className="card-suit">{suitLabel(card)}</span>
+      <span className="card-corner card-corner-top" aria-hidden="true">
+        <span className="card-mini-rank">{miniRank}</span>
+        <span className="card-mini-suit">{suit}</span>
+      </span>
+      <span className="card-face">{label}</span>
+      <span className="card-corner card-corner-bottom" aria-hidden="true">
+        <span className="card-mini-rank">{miniRank}</span>
+        <span className="card-mini-suit">{suit}</span>
+      </span>
     </button>
   );
 }
@@ -1013,20 +1023,20 @@ function fallbackCopyText(text: string) {
   }
 }
 
-function suitLabel(card: Card) {
+function suitGlyph(card: Card) {
   if (card.rank === "small-joker") {
-    return "S";
+    return "王";
   }
 
   if (card.rank === "big-joker") {
-    return "B";
+    return "王";
   }
 
   const labels: Record<NonNullable<Card["suit"]>, string> = {
-    spades: "S",
-    hearts: "H",
-    clubs: "C",
-    diamonds: "D"
+    spades: "♠",
+    hearts: "♥",
+    clubs: "♣",
+    diamonds: "♦"
   };
 
   return card.suit ? labels[card.suit] : "";
