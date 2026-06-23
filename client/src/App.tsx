@@ -576,9 +576,7 @@ function OpponentPanel({
       </div>
       <div className="card-back-row" aria-label={`对手手牌 ${opponent?.handCount ?? 0} 张`}>
         {Array.from({ length: opponent?.handCount ?? 0 }).map((_, index) => (
-          <div key={index} className="card-back">
-            523
-          </div>
+          <div key={index} className="card-back" />
         ))}
       </div>
       <TurnBadge active={state.currentTurn === opponent?.id} />
@@ -874,13 +872,16 @@ function HandPanel(props: HandPanelProps) {
 function ResultPanel({ state, onReady }: { state: PublicRoomState; onReady: () => void }) {
   const winner = state.players.find((player) => player.id === state.winner?.playerId);
   const isSpecialWin = state.winner?.reason === "special";
+  const isEmptyHandWin = state.winner?.reason === "emptyHand";
   const didYouWin = state.you === state.winner?.playerId;
   const youReady = Boolean(state.you && state.rematchReady[state.you]);
 
   return (
-    <div className={`result-panel ${isSpecialWin ? "is-special-victory" : ""}`}>
+    <div className={`result-panel ${isSpecialWin ? "is-special-victory" : ""} ${isEmptyHandWin ? "is-table-victory" : ""}`}>
       {isSpecialWin ? (
         <SpecialVictoryBanner winnerName={winner?.name ?? "胜者"} didYouWin={didYouWin} />
+      ) : isEmptyHandWin ? (
+        <TableVictoryBanner winnerName={winner?.name ?? "胜者"} didYouWin={didYouWin} />
       ) : (
         <>
           <BadgeCheck size={32} />
@@ -904,13 +905,42 @@ function ResultPanel({ state, onReady }: { state: PublicRoomState; onReady: () =
   );
 }
 
+function TableVictoryBanner({ winnerName, didYouWin }: { winnerName: string; didYouWin: boolean }) {
+  return (
+    <div className="table-victory-banner">
+      <div className="table-victory-mark" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </div>
+      <div>
+        <p className="panel-label">清台胜利</p>
+        <h2>{didYouWin ? "你打空了手牌" : `${winnerName} 打空了手牌`}</h2>
+        <p className="muted-text">{didYouWin ? "最后一手落桌，本局收下。" : "对手完成清台，本局结束。"}</p>
+      </div>
+    </div>
+  );
+}
+
 function SpecialVictoryBanner({ winnerName, didYouWin }: { winnerName: string; didYouWin: boolean }) {
+  const sigilCards = [
+    { label: "7" },
+    { joker: "big" as const },
+    { label: "5" },
+    { label: "2" },
+    { label: "3" }
+  ];
+
   return (
     <div className="special-victory-banner">
       <div className="sigil-ring" aria-hidden="true">
-        {["7", "王", "5", "2", "3"].map((label, index) => (
-          <span key={label} style={{ ["--sigil-index" as string]: index }}>
-            {label}
+        {sigilCards.map((card, index) => (
+          <span
+            key={card.label ?? "joker"}
+            className={`sigil-card ${card.joker ? "is-sigil-joker is-big-joker" : ""}`}
+            style={{ ["--sigil-index" as string]: index }}
+          >
+            {card.joker ? <JokerFace variant={card.joker} compact /> : card.label}
           </span>
         ))}
       </div>
@@ -951,21 +981,43 @@ function PlayingCard({
   const isJoker = card.rank === "small-joker" || card.rank === "big-joker";
   const isRed = card.suit === "hearts" || card.rank === "big-joker";
   const label = cardLabel(card);
+  const jokerVariant = card.rank === "small-joker" ? "small" : card.rank === "big-joker" ? "big" : undefined;
   const suit = suitGlyph(card);
 
   return (
     <button
       type="button"
-      className={`playing-card ${selected ? "is-selected" : ""} ${isRed ? "is-red" : ""} ${isJoker ? "is-joker" : ""}`}
+      className={`playing-card ${selected ? "is-selected" : ""} ${isRed ? "is-red" : ""} ${isJoker ? "is-joker" : ""} ${jokerVariant ? `is-${jokerVariant}-joker` : ""}`}
       onClick={onClick}
       disabled={disabled}
       aria-pressed={selected}
+      aria-label={label}
     >
-      <span className="card-corner card-corner-top" aria-hidden="true">
-        {suit}
-      </span>
-      <span className="card-face">{label}</span>
+      {!jokerVariant && (
+        <span className="card-corner card-corner-top" aria-hidden="true">
+          {suit}
+        </span>
+      )}
+      {jokerVariant ? <JokerFace variant={jokerVariant} /> : <span className="card-face">{label}</span>}
     </button>
+  );
+}
+
+function JokerFace({ variant, compact = false }: { variant: "small" | "big"; compact?: boolean }) {
+  return (
+    <span className={`joker-face is-${variant}-joker ${compact ? "is-compact" : ""}`} aria-hidden="true">
+      <span className="joker-hat">
+        <span />
+        <span />
+        <span />
+      </span>
+      <span className="joker-head" />
+      <span className="joker-collar">
+        <span />
+        <span />
+        <span />
+      </span>
+    </span>
   );
 }
 
