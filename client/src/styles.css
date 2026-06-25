@@ -510,11 +510,20 @@ label {
   gap: 16px;
 }
 
+.deal-mode-panel,
 .first-move-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.deal-mode-panel {
+  min-height: 78px;
+  padding: 12px;
+  border: 1px solid rgba(245, 240, 223, 0.1);
+  border-radius: 10px;
+  background: rgba(245, 240, 223, 0.04);
 }
 
 .mode-switch {
@@ -699,6 +708,231 @@ label {
   --index: 4;
 }
 
+.parking-draft-panel {
+  min-height: calc(100vh - 135px);
+  padding: 18px;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 14px;
+  border: 1px solid rgba(34, 135, 106, 0.34);
+  border-radius: 12px;
+  background:
+    linear-gradient(135deg, rgba(34, 135, 106, 0.16), transparent 44%),
+    rgba(0, 0, 0, 0.16);
+}
+
+.parking-draft-panel.is-urgent {
+  border-color: rgba(246, 197, 83, 0.5);
+  background:
+    linear-gradient(135deg, rgba(246, 197, 83, 0.18), transparent 44%),
+    rgba(0, 0, 0, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(246, 197, 83, 0.12);
+}
+
+.parking-draft-panel.is-penalty {
+  border-color: rgba(255, 173, 153, 0.36);
+  background:
+    linear-gradient(135deg, rgba(221, 48, 48, 0.16), transparent 44%),
+    rgba(0, 0, 0, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(255, 173, 153, 0.1);
+}
+
+.parking-draft-panel.is-finished {
+  border-color: rgba(217, 255, 159, 0.32);
+  background:
+    linear-gradient(135deg, rgba(110, 168, 78, 0.16), transparent 44%),
+    rgba(0, 0, 0, 0.16);
+}
+
+.parking-draft-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: start;
+}
+
+.parking-draft-header .muted-text {
+  margin-top: 8px;
+}
+
+.draft-timer {
+  min-width: 116px;
+  padding: 12px;
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+  border: 1px solid rgba(246, 197, 83, 0.22);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.draft-timer span,
+.draft-timer em,
+.parking-player-status em,
+.parking-action-bar span {
+  color: rgba(245, 240, 223, 0.58);
+  font-size: 13px;
+  font-style: normal;
+}
+
+.draft-timer strong {
+  color: #f6c553;
+  font-size: 34px;
+  line-height: 1;
+}
+
+.parking-draft-panel.is-urgent .draft-timer {
+  border-color: rgba(246, 197, 83, 0.58);
+  animation: urgent-timer 700ms ease-in-out infinite;
+}
+
+.parking-draft-panel.is-penalty .draft-timer {
+  border-color: rgba(255, 173, 153, 0.36);
+}
+
+.parking-draft-panel.is-penalty .draft-timer strong {
+  color: #ffad99;
+}
+
+.parking-status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.parking-player-status {
+  min-height: 64px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(245, 240, 223, 0.1);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.parking-player-status span,
+.parking-player-status strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.parking-player-status.is-active-player {
+  border-color: rgba(246, 197, 83, 0.26);
+}
+
+.parking-player-status.is-finished {
+  border-color: rgba(217, 255, 159, 0.28);
+  background: rgba(110, 168, 78, 0.12);
+}
+
+.parking-player-status.is-finished strong {
+  color: #d9ff9f;
+}
+
+.parking-lot {
+  min-height: 260px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-width), 1fr));
+  align-content: start;
+  gap: var(--card-gap);
+  overflow-y: auto;
+  padding: 12px;
+  border: 1px solid rgba(245, 240, 223, 0.1);
+  border-radius: 10px;
+  background:
+    linear-gradient(90deg, rgba(246, 197, 83, 0.08) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(246, 197, 83, 0.06) 1px, transparent 1px),
+    rgba(0, 0, 0, 0.14);
+  background-size: 86px 120px;
+}
+
+.parking-lot .playing-card {
+  width: 100%;
+  min-width: var(--card-width);
+}
+
+.parking-lot .playing-card:not(.is-selected) {
+  opacity: 0.64;
+  filter: saturate(0.72) contrast(0.94);
+  transform: scale(0.965);
+}
+
+.parking-lot .playing-card.is-selected {
+  opacity: 1;
+  filter: none;
+  border-color: #d9ff9f;
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.34), 0 0 0 3px rgba(217, 255, 159, 0.62);
+}
+
+.parking-lot .playing-card.is-selected::after {
+  content: "已选";
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  min-width: 34px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  color: #18320f;
+  border-radius: 999px;
+  background: #d9ff9f;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.parking-action-bar {
+  min-height: 74px;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid rgba(245, 240, 223, 0.1);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.parking-action-bar > div {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.parking-action-bar strong,
+.parking-action-bar span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.parking-finish {
+  min-width: 130px;
+}
+
+.parking-finish.is-late-finish {
+  color: #2a0c08;
+  border-color: #ffad99;
+  background: #ffad99;
+  border-radius: 999px;
+  box-shadow: 0 0 0 4px rgba(255, 173, 153, 0.14);
+}
+
+.parking-finish.is-late-finish:hover:not(:disabled) {
+  color: #2a0c08;
+  background: #ffd0c3;
+}
+
+@keyframes urgent-timer {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
 .hand-zone {
   display: grid;
   gap: 14px;
@@ -748,10 +982,16 @@ label {
   transition: transform 140ms ease, border-color 140ms ease;
 }
 
-.playing-card:not(:disabled):hover,
 .playing-card.is-selected {
   transform: translateY(-12px);
   border-color: #f6c553;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .playing-card:not(:disabled):hover {
+    transform: translateY(-12px);
+    border-color: #f6c553;
+  }
 }
 
 .playing-card.is-red {
@@ -1337,11 +1577,13 @@ label {
   }
 
   .first-move-header,
+  .deal-mode-panel,
   .dice-stage {
     grid-template-columns: 1fr;
   }
 
-  .first-move-header {
+  .first-move-header,
+  .deal-mode-panel {
     display: grid;
   }
 
@@ -1379,6 +1621,32 @@ label {
 
   .table-victory-banner {
     grid-template-columns: 1fr;
+  }
+
+  .parking-draft-panel {
+    min-height: auto;
+  }
+
+  .parking-draft-header,
+  .parking-action-bar {
+    display: grid;
+  }
+
+  .draft-timer {
+    justify-items: start;
+  }
+
+  .parking-status-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .parking-lot {
+    grid-template-columns: repeat(auto-fill, minmax(66px, 1fr));
+    max-height: 52vh;
+  }
+
+  .parking-finish {
+    width: 100%;
   }
 
   .card-back,

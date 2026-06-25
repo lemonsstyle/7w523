@@ -1,4 +1,16 @@
-type SoundName = "lead" | "beat" | "draw" | "pass" | "special" | "button" | "start" | "dice";
+type SoundName =
+  | "lead"
+  | "beat"
+  | "draw"
+  | "pass"
+  | "special"
+  | "button"
+  | "start"
+  | "dice"
+  | "tick"
+  | "deadline"
+  | "penalty"
+  | "release";
 type WaveType = OscillatorType;
 
 interface ToneOptions {
@@ -44,6 +56,14 @@ export function playSound(name: SoundName, muted: boolean, repeat = 1): void {
       startGame(context, start);
     } else if (name === "dice") {
       diceRoll(context, start);
+    } else if (name === "tick") {
+      countdownTick(context, start);
+    } else if (name === "deadline") {
+      deadlineTone(context, start);
+    } else if (name === "penalty") {
+      penaltyCue(context, start);
+    } else if (name === "release") {
+      releaseCue(context, start);
     } else {
       smallClick(context, start);
     }
@@ -208,6 +228,63 @@ function diceRoll(context: AudioContext, start: number): void {
     gain: 0.07,
     wave: "triangle",
     filterFrequency: 1800
+  });
+}
+
+function countdownTick(context: AudioContext, start: number): void {
+  tone(context, {
+    frequency: 860,
+    start,
+    duration: 0.075,
+    gain: 0.06,
+    wave: "sine",
+    filterFrequency: 2200
+  });
+}
+
+function deadlineTone(context: AudioContext, start: number): void {
+  tone(context, {
+    frequency: 860,
+    endFrequency: 620,
+    start,
+    duration: 0.55,
+    gain: 0.075,
+    wave: "sine",
+    filterFrequency: 1800,
+    attack: 0.01
+  });
+}
+
+function penaltyCue(context: AudioContext, start: number): void {
+  tone(context, {
+    frequency: 180,
+    endFrequency: 120,
+    start,
+    duration: 0.18,
+    gain: 0.12,
+    wave: "sawtooth",
+    filterFrequency: 900
+  });
+  noise(context, start + 0.04, 0.13, 0.05, 1400, "bandpass");
+}
+
+function releaseCue(context: AudioContext, start: number): void {
+  tone(context, {
+    frequency: 330,
+    endFrequency: 660,
+    start,
+    duration: 0.18,
+    gain: 0.1,
+    wave: "triangle",
+    filterFrequency: 2200
+  });
+  tone(context, {
+    frequency: 880,
+    start: start + 0.1,
+    duration: 0.09,
+    gain: 0.05,
+    wave: "sine",
+    filterFrequency: 3200
   });
 }
 

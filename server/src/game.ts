@@ -9,8 +9,10 @@ import {
   sortCards,
   type Card,
   type ClientMessage,
+  type DealMode,
   type FirstMoveMode,
   type FirstMoveState,
+  type ParkingDraftState,
   type PlayedSet,
   type PlayerId,
   type PublicPlayerState,
@@ -22,6 +24,10 @@ import {
   type ScoreState,
   type WinnerState
 } from "@seven-kings-523/shared";
+
+const PARKING_DRAFT_MS = 7_000;
+const PARKING_AUTO_FINISH_MS = 10_000;
+const MAX_PARKING_PENALTY = 3;
 
 export interface Player {
   id: PlayerId;
@@ -37,11 +43,13 @@ export interface Room {
   roomId: string;
   phase: PublicRoomState["phase"];
   players: Partial<Record<PlayerId, Player>>;
+  dealMode: DealMode;
   deck: Card[];
   discard: Card[];
   currentTurn?: PlayerId;
   currentTrick?: PlayedSet;
   currentTrickOwner?: PlayerId;
+  parkingDraft?: ParkingDraftState;
   lastAction: string;
   rps: RpsState;
   firstMove: FirstMoveState;
@@ -87,6 +95,11 @@ export class GameStore {
           room.lastAction = `${player.name} 返回了大厅，房间会短时间保留。`;
           return room;
         });
+      case "setDealMode":
+        return this.withPlayer(session, (room, player) => {
+          setDealMode(room, player.id, message.mode);
+          return room;
+        });
       case "setFirstMoveMode":
         return this.withPlayer(session, (room, player) => {
           setFirstMoveMode(room, player.id, message.mode);
@@ -100,6 +113,16 @@ export class GameStore {
       case "rollDice":
         return this.withPlayer(session, (room, player) => {
           rollDice(room, player.id, this.random);
+          return room;
+        });
+      case "toggleParkingCard":
+        return this.withPlayer(session, (room, player) => {
+          toggleParkingCard(room, player.id, message.cardId);
+          return room;
+        });
+      case "finishParkingDraft":
+        return this.withPlayer(session, (room, player) => {
+          finishParkingDraft(room, player.id, Date.now(), this.random);
           return room;
         });
       case "playCards":
@@ -191,6 +214,18 @@ export class GameStore {
     return changed;
   }
 
+  autoFinishParkingDrafts(now = Date.now()): Room[] {
+    const changed: Room[] = [];
+
+    for (const room of this.rooms.values()) {
+      if (autoFinishParkingDrafts(room, now, this.random)) {
+        changed.push(room);
+      }
+    }
+
+    return changed;
+  }
+
   private createRoom(name?: string): { playerId: PlayerId; room: Room; event: GameEvent } {
     const roomId = createRoomId(this.random);
     const room: Room = {
@@ -199,6 +234,7 @@ export class GameStore {
       players: {
         P1: makePlayer("P1", name, this.random)
       },
+      dealMode: "standard",
       deck: [],
       discard: [],
       lastAction: "房间已创建，等待第二位玩家加入。",
@@ -300,7 +336,7 @@ export function publicState(room: Room, viewerId?: PlayerId): PublicRoomState {
     hasCustomName: player.hasCustomName,
     connected: player.connected,
     handCount: player.hand.length,
-    hand: player.id === viewerId ? sortCards(player.hand) : undefined,
+    hand: player.id === viewerId || room.phase === "finished" ? sortCards(player.hand) : undefined,
     rpsChoice: room.rps.choices[player.id]
   }));
 
@@ -311,8 +347,10 @@ export function publicState(room: Room, viewerId?: PlayerId): PublicRoomState {
   return {
     roomId: room.roomId,
     phase: room.phase,
+    serverTime: Date.now(),
     you: viewerId,
     players,
+    dealMode: room.dealMode,
     score: room.score,
     rematchReady: room.rematchReady,
     deckCount: room.deck.length,
@@ -322,6 +360,7 @@ export function publicState(room: Room, viewerId?: PlayerId): PublicRoomState {
     lastAction: room.lastAction,
     rps: sanitizedRps(room.rps, room.phase, viewerId),
     firstMove: sanitizedFirstMove(room.firstMove, room.phase, viewerId),
+    parkingDraft: sanitizedParkingDraft(room.parkingDraft, viewerId),
     winner: room.winner,
     canDraw: canDrawNow(room),
     reconnectUntil
@@ -357,7 +396,7 @@ export function chooseRps(room: Room, playerId: PlayerId, choice: RpsChoice, ran
   const winner: PlayerId = result === 1 ? "P1" : "P2";
   room.firstMove.winner = winner;
   room.rps.winner = winner;
-  startGame(room, winner, random);
+  startGameOrDraft(room, winner, random);
 }
 
 export function rollDice(room: Room, playerId: PlayerId, random: () => number = Math.random): void {
@@ -394,7 +433,84 @@ export function rollDice(room: Room, playerId: PlayerId, random: () => number = 
 
   const winner: PlayerId = p1Roll > p2Roll ? "P1" : "P2";
   room.firstMove.winner = winner;
-  startGame(room, winner, random);
+  startGameOrDraft(room, winner, random);
+}
+
+export function toggleParkingCard(room: Room, playerId: PlayerId, cardId: string, now = Date.now()): void {
+  assertPhase(room, "drafting", "现在还不能抢车位。");
+  const draft = assertParkingDraft(room);
+  const playerDraft = draft.players[playerId];
+
+  if (playerDraft.finished) {
+    throw new GameError("你已经完成选牌。");
+  }
+
+  if (now > draft.deadlineAt) {
+    throw new GameError("抢车位选择时间已结束，只能点击完成。");
+  }
+
+  const card = playerDraft.pile?.find((candidate) => candidate.id === cardId);
+  if (!card) {
+    throw new GameError("这张牌不在你的车位里。");
+  }
+
+  const selectedIds = playerDraft.selectedIds ?? [];
+  if (selectedIds.includes(cardId)) {
+    playerDraft.selectedIds = selectedIds.filter((selectedId) => selectedId !== cardId);
+  } else {
+    playerDraft.selectedIds = [...selectedIds, cardId];
+  }
+
+  playerDraft.selectedCount = playerDraft.selectedIds.length;
+  room.lastAction = `${room.players[playerId]?.name ?? playerId} 正在抢车位，已选 ${playerDraft.selectedCount} 张。`;
+}
+
+export function finishParkingDraft(
+  room: Room,
+  playerId: PlayerId,
+  now = Date.now(),
+  random: () => number = Math.random
+): void {
+  assertPhase(room, "drafting", "现在没有抢车位阶段。");
+  assertPlayer(room, playerId);
+
+  const draft = assertParkingDraft(room);
+  finalizeParkingPlayer(room, playerId, now, false, random);
+
+  const playerName = room.players[playerId]?.name ?? playerId;
+  if (draft.players.P1.finished && draft.players.P2.finished) {
+    enterPlayingAfterDraft(room);
+    return;
+  }
+
+  room.lastAction = `${playerName} 已完成抢车位，等待对手。`;
+}
+
+export function autoFinishParkingDrafts(room: Room, now = Date.now(), random: () => number = Math.random): boolean {
+  if (room.phase !== "drafting" || !room.parkingDraft || now < room.parkingDraft.autoFinishAt) {
+    return false;
+  }
+
+  let changed = false;
+  for (const player of orderedPlayers(room)) {
+    if (room.parkingDraft.players[player.id].finished) {
+      continue;
+    }
+
+    finalizeParkingPlayer(room, player.id, now, true, random);
+    changed = true;
+  }
+
+  if (changed && room.parkingDraft.players.P1.finished && room.parkingDraft.players.P2.finished) {
+    enterPlayingAfterDraft(room);
+    return true;
+  }
+
+  if (changed) {
+    room.lastAction = "超时玩家已由系统完成抢车位，等待另一位玩家。";
+  }
+
+  return changed;
 }
 
 export function playCards(room: Room, playerId: PlayerId, cardIds: string[]): void {
@@ -540,6 +656,7 @@ export function startGame(room: Room, firstPlayer: PlayerId, random: () => numbe
   room.currentTrick = undefined;
   room.currentTrickOwner = undefined;
   room.winner = undefined;
+  room.parkingDraft = undefined;
   room.phase = "playing";
 
   for (const player of orderedPlayers(room)) {
@@ -558,6 +675,41 @@ export function startGame(room: Room, firstPlayer: PlayerId, random: () => numbe
   const firstName = room.players[firstPlayer]?.name ?? firstPlayer;
   const firstMoveMethod = room.firstMove.mode === "dice" ? "摇骰胜出" : "猜拳胜出";
   room.lastAction = `${firstName} ${firstMoveMethod}，先手开始。`;
+}
+
+export function startParkingDraft(room: Room, firstPlayer: PlayerId, random: () => number, now = Date.now()): void {
+  const deck = prepareDeck(random);
+  const firstPileSize = Math.ceil(deck.length / 2);
+  const firstPile = deck.slice(0, firstPileSize);
+  const secondPile = deck.slice(firstPileSize);
+  const secondPlayer = opponentOf(firstPlayer);
+
+  room.deck = [];
+  room.discard = [];
+  room.currentTurn = undefined;
+  room.currentTrick = undefined;
+  room.currentTrickOwner = undefined;
+  room.winner = undefined;
+  room.phase = "drafting";
+
+  for (const player of orderedPlayers(room)) {
+    player.hand = [];
+  }
+
+  room.parkingDraft = {
+    firstPlayer,
+    startedAt: now,
+    deadlineAt: now + PARKING_DRAFT_MS,
+    autoFinishAt: now + PARKING_AUTO_FINISH_MS,
+    players: {
+      P1: makeParkingDraftPlayer(firstPlayer === "P1" ? firstPile : secondPile),
+      P2: makeParkingDraftPlayer(firstPlayer === "P2" ? firstPile : secondPile)
+    }
+  };
+
+  const firstName = room.players[firstPlayer]?.name ?? firstPlayer;
+  const secondName = room.players[secondPlayer]?.name ?? secondPlayer;
+  room.lastAction = `抢车位开始。${firstName} 先手，多看 1 张；${secondName} 同步选牌。`;
 }
 
 function prepareDeck(random: () => number): Card[] {
@@ -585,17 +737,110 @@ function canDrawNow(room: Room): boolean {
   );
 }
 
+function startGameOrDraft(room: Room, firstPlayer: PlayerId, random: () => number): void {
+  if (room.dealMode === "parking") {
+    startParkingDraft(room, firstPlayer, random);
+    return;
+  }
+
+  startGame(room, firstPlayer, random);
+}
+
+function makeParkingDraftPlayer(pile: Card[]): ParkingDraftState["players"][PlayerId] {
+  return {
+    pileCount: pile.length,
+    selectedCount: 0,
+    finished: false,
+    autoFinished: false,
+    penaltyCards: 0,
+    pile,
+    selectedIds: []
+  };
+}
+
+function assertParkingDraft(room: Room): ParkingDraftState {
+  if (!room.parkingDraft) {
+    throw new GameError("抢车位阶段不存在。");
+  }
+
+  return room.parkingDraft;
+}
+
+function finalizeParkingPlayer(
+  room: Room,
+  playerId: PlayerId,
+  now: number,
+  autoFinished: boolean,
+  random: () => number
+): void {
+  const draft = assertParkingDraft(room);
+  const player = assertPlayer(room, playerId);
+  const playerDraft = draft.players[playerId];
+
+  if (playerDraft.finished) {
+    return;
+  }
+
+  const pile = playerDraft.pile ?? [];
+  const selectedIds = playerDraft.selectedIds ?? [];
+  const keptIds = selectedIds.slice(0, HAND_TARGET_SIZE);
+  const selectedCards = keptIds.map((cardId) => pile.find((card) => card.id === cardId)).filter((card): card is Card => Boolean(card));
+  const selectedIdSet = new Set(selectedIds);
+  const remainingCards = pile.filter((card) => !selectedIdSet.has(card.id));
+
+  const penaltyCards = parkingPenaltyCards(now, draft.deadlineAt);
+  const targetSize = HAND_TARGET_SIZE + penaltyCards;
+  const neededCards = Math.max(0, targetSize - selectedCards.length);
+  const extraCards = drawRandomCards(remainingCards, neededCards, random);
+
+  player.hand = [...selectedCards, ...extraCards];
+  playerDraft.pile = [];
+  playerDraft.selectedIds = keptIds;
+  playerDraft.pileCount = 0;
+  playerDraft.selectedCount = keptIds.length;
+  playerDraft.finished = true;
+  playerDraft.autoFinished = autoFinished;
+  playerDraft.penaltyCards = penaltyCards;
+  playerDraft.finishedAt = now;
+}
+
+function parkingPenaltyCards(now: number, deadlineAt: number): number {
+  const lateMs = Math.max(0, now - deadlineAt);
+  if (lateMs <= 0) {
+    return 0;
+  }
+
+  return Math.min(MAX_PARKING_PENALTY, Math.floor((lateMs - 1) / 1000) + 1);
+}
+
+function drawRandomCards(cards: Card[], count: number, random: () => number): Card[] {
+  return shuffle(cards, random).slice(0, count);
+}
+
+function enterPlayingAfterDraft(room: Room): void {
+  const draft = assertParkingDraft(room);
+  const firstName = room.players[draft.firstPlayer]?.name ?? draft.firstPlayer;
+
+  room.deck = [];
+  room.discard = [];
+  room.currentTurn = draft.firstPlayer;
+  room.currentTrick = undefined;
+  room.currentTrickOwner = undefined;
+  room.phase = "playing";
+  room.lastAction = `抢车位结束。${firstName} 先手开始。`;
+}
+
 function finish(room: Room, playerId: PlayerId, reason: WinnerState["reason"], lastAction: string): void {
-  if (room.currentTrick) {
+  if (room.currentTrick && reason !== "emptyHand") {
     room.discard.push(...room.currentTrick.cards);
+    room.currentTrick = undefined;
+    room.currentTrickOwner = undefined;
   }
 
   room.score[playerId] += 1;
   room.rematchReady = {};
   room.phase = "finished";
   room.currentTurn = undefined;
-  room.currentTrick = undefined;
-  room.currentTrickOwner = undefined;
   room.winner = { playerId, reason };
   room.lastAction = lastAction;
 }
@@ -619,6 +864,20 @@ function assertPlayer(room: Room, playerId: PlayerId): Player {
   }
 
   return player;
+}
+
+function setDealMode(room: Room, playerId: PlayerId, mode: DealMode): void {
+  assertPhase(room, "rps", "只有开局前可以切换玩法。");
+  assertPlayer(room, playerId);
+
+  if (playerId !== "P1") {
+    throw new GameError("只有房主可以切换玩法。");
+  }
+
+  room.dealMode = mode;
+  room.firstMove = makeFirstMoveState(room.firstMove.mode);
+  room.rps = { choices: {}, tieCount: 0 };
+  room.lastAction = mode === "parking" ? "玩法已切换为抢车位。重新决定先手后开始选牌。" : "玩法已切换为标准发牌。";
 }
 
 function setFirstMoveMode(room: Room, playerId: PlayerId, mode: FirstMoveMode): void {
@@ -658,6 +917,7 @@ function resetForFirstMove(room: Room): void {
   room.currentTurn = undefined;
   room.currentTrick = undefined;
   room.currentTrickOwner = undefined;
+  room.parkingDraft = undefined;
   room.winner = undefined;
   room.rematchReady = {};
   room.rps = { choices: {}, tieCount: 0 };
@@ -742,6 +1002,39 @@ function sanitizedFirstMove(firstMove: FirstMoveState, phase: Room["phase"], vie
     diceRolls: firstMove.diceRolls,
     winner: firstMove.winner,
     tieCount: firstMove.tieCount
+  };
+}
+
+function sanitizedParkingDraft(draft: ParkingDraftState | undefined, viewerId?: PlayerId): ParkingDraftState | undefined {
+  if (!draft) {
+    return undefined;
+  }
+
+  return {
+    firstPlayer: draft.firstPlayer,
+    startedAt: draft.startedAt,
+    deadlineAt: draft.deadlineAt,
+    autoFinishAt: draft.autoFinishAt,
+    players: {
+      P1: sanitizedParkingDraftPlayer(draft.players.P1, viewerId === "P1"),
+      P2: sanitizedParkingDraftPlayer(draft.players.P2, viewerId === "P2")
+    }
+  };
+}
+
+function sanitizedParkingDraftPlayer(
+  playerDraft: ParkingDraftState["players"][PlayerId],
+  isViewer: boolean
+): ParkingDraftState["players"][PlayerId] {
+  return {
+    pileCount: playerDraft.pileCount,
+    selectedCount: playerDraft.selectedCount,
+    finished: playerDraft.finished,
+    autoFinished: playerDraft.autoFinished,
+    penaltyCards: playerDraft.penaltyCards,
+    finishedAt: playerDraft.finishedAt,
+    pile: isViewer && !playerDraft.finished ? playerDraft.pile : undefined,
+    selectedIds: isViewer && !playerDraft.finished ? playerDraft.selectedIds : undefined
   };
 }
 

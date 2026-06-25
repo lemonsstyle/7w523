@@ -8,6 +8,9 @@ import {
   playCards,
   publicState,
   rollDice,
+  finishParkingDraft,
+  startParkingDraft,
+  toggleParkingCard,
   type Room
 } from "../src/game";
 import type { Card } from "@seven-kings-523/shared";
@@ -34,6 +37,7 @@ function makeRoom(): Room {
         hand: cards(["5", "5", "6"])
       }
     },
+    dealMode: "standard",
     deck: cards(["A", "K", "Q", "J"]),
     discard: [],
     currentTurn: "P1",
@@ -115,6 +119,110 @@ describe("game flow", () => {
     expect(maximumRemovedRoom.deck.length).toBe(24);
   });
 
+  it("starts parking draft with the first player getting the odd extra pile card", () => {
+    const room = makeRoom();
+    room.phase = "rps";
+    room.players.P1!.hand = [];
+    room.players.P2!.hand = [];
+
+    startParkingDraft(room, "P2", randomSequence([...Array.from({ length: 53 }, () => 0), 0.08, ...Array.from({ length: 45 }, () => 0)]), 1_000);
+
+    expect(room.phase).toBe("drafting");
+    expect(room.parkingDraft?.players.P2.pileCount).toBe(23);
+    expect(room.parkingDraft?.players.P1.pileCount).toBe(22);
+    expect(room.parkingDraft?.deadlineAt).toBe(8_000);
+    expect(room.parkingDraft?.autoFinishAt).toBe(11_000);
+  });
+
+  it("finalizes parking draft by keeping first five selections and adding late penalty cards", () => {
+    const room = makeRoom();
+    const p1Pile = cards(["A", "4", "6", "8", "9", "10", "J", "Q"]);
+    const p2Pile = cards(["5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"]);
+
+    room.phase = "drafting";
+    room.currentTurn = undefined;
+    room.deck = [];
+    room.players.P1!.hand = [];
+    room.players.P2!.hand = [];
+    room.parkingDraft = {
+      firstPlayer: "P1",
+      startedAt: 1_000,
+      deadlineAt: 8_000,
+      autoFinishAt: 11_000,
+      players: {
+        P1: {
+          pileCount: p1Pile.length,
+          selectedCount: 6,
+          finished: false,
+          autoFinished: false,
+          penaltyCards: 0,
+          pile: p1Pile,
+          selectedIds: p1Pile.slice(0, 6).map((card) => card.id)
+        },
+        P2: {
+          pileCount: p2Pile.length,
+          selectedCount: 2,
+          finished: false,
+          autoFinished: false,
+          penaltyCards: 0,
+          pile: p2Pile,
+          selectedIds: p2Pile.slice(0, 2).map((card) => card.id)
+        }
+      }
+    };
+
+    finishParkingDraft(room, "P1", 8_500, () => 0);
+    finishParkingDraft(room, "P2", 10_100, () => 0);
+
+    expect(room.phase).toBe("playing");
+    expect(room.currentTurn).toBe("P1");
+    expect(room.players.P1?.hand.slice(0, 5).map((card) => card.id)).toEqual(p1Pile.slice(0, 5).map((card) => card.id));
+    expect(room.players.P1?.hand).toHaveLength(6);
+    expect(room.players.P2?.hand).toHaveLength(8);
+    expect(room.parkingDraft?.players.P1.penaltyCards).toBe(1);
+    expect(room.parkingDraft?.players.P2.penaltyCards).toBe(3);
+  });
+
+  it("blocks parking card changes after the draft deadline", () => {
+    const room = makeRoom();
+    const pile = cards(["A", "4", "6", "8", "9"]);
+
+    room.phase = "drafting";
+    room.players.P1!.hand = [];
+    room.players.P2!.hand = [];
+    room.parkingDraft = {
+      firstPlayer: "P1",
+      startedAt: 1_000,
+      deadlineAt: 8_000,
+      autoFinishAt: 11_000,
+      players: {
+        P1: {
+          pileCount: pile.length,
+          selectedCount: 0,
+          finished: false,
+          autoFinished: false,
+          penaltyCards: 0,
+          pile,
+          selectedIds: []
+        },
+        P2: {
+          pileCount: 0,
+          selectedCount: 0,
+          finished: false,
+          autoFinished: false,
+          penaltyCards: 0,
+          pile: [],
+          selectedIds: []
+        }
+      }
+    };
+
+    toggleParkingCard(room, "P1", pile[0].id, 7_999);
+
+    expect(room.parkingDraft.players.P1.selectedIds).toEqual([pile[0].id]);
+    expect(() => toggleParkingCard(room, "P1", pile[1].id, 8_001)).toThrow("选择时间已结束");
+  });
+
   it("can use dice rolls to decide first player", () => {
     const store = new GameStore(() => 0.1);
     const created = store.handle(undefined, { type: "createRoom" });
@@ -178,6 +286,29 @@ describe("game flow", () => {
     expect(room.rematchReady).toEqual({});
     expect(room.players.P1?.hand).toHaveLength(0);
     expect(room.players.P2?.hand).toHaveLength(0);
+  });
+
+  it("keeps the winning final play on the table and reveals remaining hands", () => {
+    const room = makeRoom();
+    room.deck = [];
+    room.currentTurn = "P1";
+    room.players.P1!.hand = cards(["7"]);
+    room.players.P2!.hand = cards(["5", "6"]);
+
+    const finalCardId = room.players.P1?.hand[0]?.id ?? "";
+
+    playCards(room, "P1", [finalCardId]);
+
+    expect(room.phase).toBe("finished");
+    expect(room.currentTrick?.cards.map((card) => card.id)).toEqual([finalCardId]);
+    expect(room.discard).toHaveLength(0);
+
+    const p1State = publicState(room, "P1");
+    const p2State = publicState(room, "P2");
+
+    expect(p1State.players.find((player) => player.id === "P2")?.hand).toHaveLength(2);
+    expect(p2State.players.find((player) => player.id === "P1")?.hand).toHaveLength(0);
+    expect(p2State.currentTrick?.cards.map((card) => card.id)).toEqual([finalCardId]);
   });
 
   it("plays, passes, and lets previous player lead", () => {

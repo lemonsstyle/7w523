@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   BadgeCheck,
+  Car,
   Clipboard,
   Copy,
   Dices,
@@ -46,9 +47,13 @@ export function App() {
   const [isMuted, setIsMuted] = useState(() => localStorage.getItem(SOUND_KEY) === "true");
   const [showRematchTransition, setShowRematchTransition] = useState(false);
   const [showFirstMoveReveal, setShowFirstMoveReveal] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  const [serverClockOffset, setServerClockOffset] = useState(0);
   const socketRef = useRef<WebSocket | null>(null);
   const previousStateRef = useRef<PublicRoomState | null>(null);
   const previousPhaseRef = useRef<PublicRoomState["phase"] | null>(null);
+  const previousParkingPenaltyRef = useRef(0);
+  const lastParkingTickRef = useRef<number | null>(null);
   const nameRef = useRef(name);
 
   const wsUrl = useMemo(() => websocketUrl(), []);
@@ -120,8 +125,11 @@ export function App() {
       }
 
       setError(null);
+      setServerClockOffset(message.state.serverTime - Date.now());
       setState(message.state);
-      setSelectedIds([]);
+      if (message.state.phase !== "playing") {
+        setSelectedIds([]);
+      }
     });
 
     return () => {
@@ -135,6 +143,49 @@ export function App() {
   const selectedSet = analyzeCards(selectedCards);
   const isYourTurn = state?.phase === "playing" && state.currentTurn === state.you;
   const isEndgame = state?.phase === "playing" && state.deckCount <= 7;
+  const handIdSignature = you?.hand?.map((card) => card.id).join("|") ?? "";
+
+  useEffect(() => {
+    if (state?.phase !== "playing" || !you?.hand) {
+      setSelectedIds([]);
+      return;
+    }
+
+    const handIds = new Set(you.hand.map((card) => card.id));
+    setSelectedIds((current) => {
+      const next = current.filter((cardId, index) => handIds.has(cardId) && current.indexOf(cardId) === index);
+      return next.length === current.length ? current : next;
+    });
+  }, [state?.phase, handIdSignature]);
+
+  useEffect(() => {
+    if (state?.phase !== "drafting") {
+      lastParkingTickRef.current = null;
+      return;
+    }
+
+    const interval = window.setInterval(() => setNow(Date.now()), 100);
+    return () => window.clearInterval(interval);
+  }, [state?.phase]);
+
+  useEffect(() => {
+    if (state?.phase !== "drafting" || !state.parkingDraft) {
+      return;
+    }
+
+    const remainingMs = state.parkingDraft.deadlineAt - (now + serverClockOffset);
+    const tickKey = remainingMs <= 0 ? 0 : Math.ceil(remainingMs / 1000);
+    if (tickKey < 0 || tickKey > 3) {
+      return;
+    }
+
+    if (lastParkingTickRef.current === tickKey) {
+      return;
+    }
+
+    lastParkingTickRef.current = tickKey;
+    playSound(tickKey === 0 ? "deadline" : "tick", isMuted);
+  }, [isMuted, now, serverClockOffset, state]);
 
   useEffect(() => {
     if (!copyStatus.startsWith("已复制")) {
@@ -146,7 +197,7 @@ export function App() {
   }, [copyStatus]);
 
   useEffect(() => {
-    if (state?.phase !== "playing" || !state.firstMove.winner) {
+    if ((state?.phase !== "playing" && state?.phase !== "drafting") || !state.firstMove.winner) {
       setShowFirstMoveReveal(false);
       return;
     }
@@ -172,7 +223,7 @@ export function App() {
   }, [isMuted, state?.phase]);
 
   useEffect(() => {
-    if (!state || (state.phase !== "playing" && state.phase !== "finished")) {
+    if (!state || (state.phase !== "drafting" && state.phase !== "playing" && state.phase !== "finished")) {
       previousStateRef.current = state;
       return;
     }
@@ -184,9 +235,26 @@ export function App() {
       return;
     }
 
-    if (previousState.phase === "rps" && state.phase === "playing") {
+    if (previousState.phase === "rps" && (state.phase === "playing" || state.phase === "drafting")) {
       playSound("start", isMuted);
       return;
+    }
+
+    if (previousState.phase === "drafting" && state.phase === "playing") {
+      playSound("release", isMuted);
+      return;
+    }
+
+    const currentDraft = state.parkingDraft && state.you ? state.parkingDraft.players[state.you] : undefined;
+    const currentPenalty = currentDraft?.penaltyCards ?? 0;
+
+    if (state.phase === "drafting" && currentPenalty > previousParkingPenaltyRef.current) {
+      playSound("penalty", isMuted, currentPenalty - previousParkingPenaltyRef.current);
+    }
+    previousParkingPenaltyRef.current = currentPenalty;
+
+    if (previousState.phase === "drafting" && state.phase !== "drafting") {
+      previousParkingPenaltyRef.current = 0;
     }
 
     const currentPlayer = state.players.find((player) => player.id === state.you);
@@ -266,12 +334,9 @@ export function App() {
       return;
     }
 
-    if (selectedIds.includes(cardId)) {
-      setSelectedIds((current) => current.filter((selectedId) => selectedId !== cardId));
-      return;
-    }
-
-    setSelectedIds((current) => [...current, cardId]);
+    setSelectedIds((current) =>
+      current.includes(cardId) ? current.filter((selectedId) => selectedId !== cardId) : [...current, cardId]
+    );
   }
 
   return (
@@ -320,7 +385,7 @@ export function App() {
                 state={state}
                 playerId={playerId}
                 error={error}
-                compact={state.phase === "playing"}
+                compact={state.phase === "playing" && !error}
                 showFirstMoveReveal={state.phase === "playing" && showFirstMoveReveal}
                 copyStatus={copyStatus}
                 onCopyRoomId={() => void copyRoomId(state.roomId)}
@@ -329,12 +394,20 @@ export function App() {
             </aside>
 
             <section className="play-area">
-              <OpponentPanel state={state} opponent={opponent} />
-              <TrickPanel state={state} />
+              {state.phase !== "drafting" && (
+                <>
+                  <OpponentPanel state={state} opponent={opponent} />
+                  <TrickPanel state={state} />
+                </>
+              )}
 
               {state.phase === "rps" && (
                 <FirstMovePanel
                   state={state}
+                  onDealModeChange={(mode) => {
+                    playSound("button", isMuted);
+                    emit({ type: "setDealMode", mode });
+                  }}
                   onModeChange={(mode) => {
                     playSound(mode === "dice" ? "dice" : "button", isMuted);
                     emit({ type: "setFirstMoveMode", mode });
@@ -346,6 +419,21 @@ export function App() {
                   onRoll={() => {
                     playSound("dice", isMuted);
                     emit({ type: "rollDice" });
+                  }}
+                />
+              )}
+
+              {state.phase === "drafting" && (
+                <ParkingDraftPanel
+                  state={state}
+                  now={now + serverClockOffset}
+                  onToggleCard={(cardId) => {
+                    playSound("button", isMuted);
+                    emit({ type: "toggleParkingCard", cardId });
+                  }}
+                  onFinish={() => {
+                    playSound("button", isMuted);
+                    emit({ type: "finishParkingDraft" });
                   }}
                 />
               )}
@@ -362,8 +450,19 @@ export function App() {
                     canDraw={state.canDraw && isYourTurn}
                     onCardClick={(cardId) => handleCardClick(cardId, isYourTurn)}
                     onPlay={() => {
+                      const hand = you.hand ?? [];
+                      const handIds = new Set(hand.map((card) => card.id));
+                      const cardIds = selectedIds.filter(
+                        (cardId, index) => handIds.has(cardId) && selectedIds.indexOf(cardId) === index
+                      );
+                      const cards = hand.filter((card) => cardIds.includes(card.id));
+                      if (!analyzeCards(cards)) {
+                        setError(cardIds.length === 0 ? "请先选择要出的牌。" : "这个组合不能出。");
+                        return;
+                      }
+
                       playSound("button", isMuted);
-                      emit({ type: "playCards", cardIds: selectedIds });
+                      emit({ type: "playCards", cardIds });
                     }}
                     onPass={() => {
                       playSound("button", isMuted);
@@ -568,16 +667,21 @@ function OpponentPanel({
   state: PublicRoomState;
   opponent?: PublicRoomState["players"][number];
 }) {
+  const revealedHand = opponent?.hand;
+
   return (
     <div className="opponent-band">
       <div>
         <p className="panel-label">对手</p>
         <h2>{opponent?.name ?? "等待加入"}</h2>
       </div>
-      <div className="card-back-row" aria-label={`对手手牌 ${opponent?.handCount ?? 0} 张`}>
-        {Array.from({ length: opponent?.handCount ?? 0 }).map((_, index) => (
-          <div key={index} className="card-back" />
-        ))}
+      <div
+        className={`card-back-row ${revealedHand ? "is-revealed-hand" : ""}`}
+        aria-label={`对手手牌 ${opponent?.handCount ?? 0} 张`}
+      >
+        {revealedHand
+          ? revealedHand.map((card) => <PlayingCard key={card.id} card={card} selected={false} disabled />)
+          : Array.from({ length: opponent?.handCount ?? 0 }).map((_, index) => <div key={index} className="card-back" />)}
       </div>
       <TurnBadge active={state.currentTurn === opponent?.id} />
     </div>
@@ -646,11 +750,13 @@ function TrickPanel({ state }: { state: PublicRoomState }) {
 
 function FirstMovePanel({
   state,
+  onDealModeChange,
   onModeChange,
   onChoose,
   onRoll
 }: {
   state: PublicRoomState;
+  onDealModeChange: (mode: PublicRoomState["dealMode"]) => void;
   onModeChange: (mode: FirstMoveMode) => void;
   onChoose: (choice: RpsChoice) => void;
   onRoll: () => void;
@@ -682,6 +788,30 @@ function FirstMovePanel({
             onClick={() => onModeChange("dice")}
           >
             骰子
+          </button>
+        </div>
+      </div>
+
+      <div className="deal-mode-panel">
+        <div>
+          <p className="panel-label">玩法</p>
+          <h2>{state.dealMode === "parking" ? "抢车位" : "标准发牌"}</h2>
+        </div>
+        <div className="mode-switch" role="group" aria-label="选择玩法">
+          <button
+            type="button"
+            className={state.dealMode === "standard" ? "is-selected-mode" : ""}
+            onClick={() => onDealModeChange("standard")}
+          >
+            标准
+          </button>
+          <button
+            type="button"
+            className={state.dealMode === "parking" ? "is-selected-mode" : ""}
+            onClick={() => onDealModeChange("parking")}
+          >
+            <Car size={15} />
+            抢车位
           </button>
         </div>
       </div>
@@ -728,7 +858,13 @@ function FirstMovePanel({
       )}
 
       <FirstMoveResult state={state} opponentName={opponent?.name ?? "对手"} />
-      <p className="muted-text">{youReady ? "你的选择已锁定，等待对手。" : "双方完成后立即开局。"}</p>
+      <p className="muted-text">
+        {youReady
+          ? "你的选择已锁定，等待对手。"
+          : state.dealMode === "parking"
+            ? "先手确定后进入 7 秒抢车位。"
+            : "双方完成后立即开局。"}
+      </p>
     </div>
   );
 }
@@ -805,6 +941,123 @@ function DeckMeter({ deckCount, endgame }: { deckCount: number; endgame: boolean
         <strong>{label}</strong>
         {endgame && <span className="deck-warning">最终决战将至</span>}
       </div>
+    </div>
+  );
+}
+
+function ParkingDraftPanel({
+  state,
+  now,
+  onToggleCard,
+  onFinish
+}: {
+  state: PublicRoomState;
+  now: number;
+  onToggleCard: (cardId: string) => void;
+  onFinish: () => void;
+}) {
+  const draft = state.parkingDraft;
+  const youId = state.you;
+  const you = youId ? state.players.find((player) => player.id === youId) : undefined;
+  const opponent = state.players.find((player) => player.id !== youId);
+  const yourDraft = youId && draft ? draft.players[youId] : undefined;
+  const opponentDraft = opponent && draft ? draft.players[opponent.id] : undefined;
+  const remainingMs = draft ? Math.max(0, draft.deadlineAt - now) : 0;
+  const autoRemainingMs = draft ? Math.max(0, draft.autoFinishAt - now) : 0;
+  const lateMs = draft ? Math.max(0, now - draft.deadlineAt) : 0;
+  const latePenalty = parkingPenalty(lateMs);
+  const selectedIds = yourDraft?.selectedIds ?? [];
+  const isLate = lateMs > 0;
+  const isUrgent = !isLate && remainingMs <= 4_000;
+  const phaseClass = yourDraft?.finished ? "is-finished" : isLate ? "is-penalty" : isUrgent ? "is-urgent" : "";
+  const canInteract = Boolean(yourDraft && !yourDraft.finished && !isLate);
+
+  if (!draft || !yourDraft) {
+    return (
+      <div className="parking-draft-panel">
+        <p className="panel-label">抢车位</p>
+        <h2>等待牌堆</h2>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`parking-draft-panel ${phaseClass}`}>
+      <div className="parking-draft-header">
+        <div>
+          <p className="panel-label">抢车位</p>
+          <h2>{you?.name ?? "你"} 的车位</h2>
+          <p className="muted-text">
+            已选 {selectedIds.length} 张，最终保留前 5 张。未选牌在结算后丢掉。
+          </p>
+        </div>
+        <div className="draft-timer" aria-label={isLate ? `已超时 ${formatSeconds(lateMs)}` : `剩余 ${formatSeconds(remainingMs)}`}>
+          <span>{isLate ? "已超时" : "剩余"}</span>
+          <strong>{isLate ? formatSeconds(lateMs) : formatSeconds(remainingMs)}</strong>
+          <em>{isLate ? `惩罚 +${latePenalty} 张` : isUrgent ? "即将锁定" : "7 秒内完成"}</em>
+        </div>
+      </div>
+
+      <div className="parking-status-grid">
+        <ParkingPlayerStatus name={you?.name ?? "你"} draft={yourDraft} active />
+        <ParkingPlayerStatus name={opponent?.name ?? "对手"} draft={opponentDraft} />
+      </div>
+
+      <div className="parking-lot" aria-label="你的抢车位牌堆">
+        {(yourDraft.pile ?? []).map((card) => (
+          <PlayingCard
+            key={card.id}
+            card={card}
+            selected={selectedIds.includes(card.id)}
+            disabled={!canInteract}
+            onClick={() => onToggleCard(card.id)}
+          />
+        ))}
+      </div>
+
+      <div className="parking-action-bar">
+        <div>
+          <strong>{yourDraft.finished ? "已完成" : isLate ? "惩罚计时中" : isUrgent ? "倒计时即将结束" : "选择 5 张后完成"}</strong>
+          <span>
+            {yourDraft.finished
+              ? `手牌 ${state.players.find((player) => player.id === youId)?.handCount ?? 0} 张`
+              : isLate
+                ? `${formatSeconds(autoRemainingMs)} 后系统自动完成`
+                : selectedIds.length > 5
+                  ? `多选 ${selectedIds.length - 5} 张，最后选择的会被裁掉`
+                  : selectedIds.length < 5
+                    ? `还差 ${5 - selectedIds.length} 张，结算时从你的剩余牌随机补`
+                    : "数量正好"}
+          </span>
+        </div>
+        <button
+          type="button"
+          className={`primary-action parking-finish ${isLate ? "is-late-finish" : ""}`}
+          onClick={onFinish}
+          disabled={yourDraft.finished}
+        >
+          <BadgeCheck size={18} />
+          {yourDraft.finished ? "等待对手" : isLate ? "带罚完成" : "完成"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ParkingPlayerStatus({
+  name,
+  draft,
+  active = false
+}: {
+  name: string;
+  draft?: NonNullable<PublicRoomState["parkingDraft"]>["players"][PlayerId];
+  active?: boolean;
+}) {
+  return (
+    <div className={`parking-player-status ${active ? "is-active-player" : ""} ${draft?.finished ? "is-finished" : ""}`}>
+      <span>{name}</span>
+      <strong>{draft?.finished ? (draft.autoFinished ? "自动完成" : "已完成") : `已选 ${draft?.selectedCount ?? 0}`}</strong>
+      <em>{draft?.penaltyCards ? `罚 ${draft.penaltyCards} 张` : `${draft?.pileCount ?? 0} 张可抢`}</em>
     </div>
   );
 }
@@ -1118,6 +1371,18 @@ function typeLabel(type: NonNullable<PublicRoomState["currentTrick"]>["type"]) {
   };
 
   return labels[type];
+}
+
+function formatSeconds(milliseconds: number) {
+  return `${Math.ceil(milliseconds / 1000)}s`;
+}
+
+function parkingPenalty(lateMs: number) {
+  if (lateMs <= 0) {
+    return 0;
+  }
+
+  return Math.min(3, Math.floor((lateMs - 1) / 1000) + 1);
 }
 
 function rpsLabel(choice: RpsChoice) {

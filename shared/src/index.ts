@@ -14,7 +14,8 @@ export type RankValue = StandardRank | "JOKER";
 export type PlayerId = "P1" | "P2";
 export type RpsChoice = "rock" | "paper" | "scissors";
 export type FirstMoveMode = "rps" | "dice";
-export type RoomPhase = "lobby" | "rps" | "playing" | "finished";
+export type DealMode = "standard" | "parking";
+export type RoomPhase = "lobby" | "rps" | "drafting" | "playing" | "finished";
 export type CardType = "single" | "pair" | "triple" | "straight" | "bomb";
 
 export interface Card {
@@ -59,14 +60,35 @@ export interface WinnerState {
   reason: "special" | "emptyHand" | "opponentLeft";
 }
 
+export interface ParkingDraftPlayerState {
+  pileCount: number;
+  selectedCount: number;
+  finished: boolean;
+  autoFinished: boolean;
+  penaltyCards: number;
+  finishedAt?: number;
+  pile?: Card[];
+  selectedIds?: string[];
+}
+
+export interface ParkingDraftState {
+  firstPlayer: PlayerId;
+  startedAt: number;
+  deadlineAt: number;
+  autoFinishAt: number;
+  players: Record<PlayerId, ParkingDraftPlayerState>;
+}
+
 export type ScoreState = Record<PlayerId, number>;
 export type RematchReadyState = Partial<Record<PlayerId, boolean>>;
 
 export interface PublicRoomState {
   roomId: string;
   phase: RoomPhase;
+  serverTime: number;
   you?: PlayerId;
   players: PublicPlayerState[];
+  dealMode: DealMode;
   score: ScoreState;
   rematchReady: RematchReadyState;
   deckCount: number;
@@ -76,6 +98,7 @@ export interface PublicRoomState {
   lastAction: string;
   rps: RpsState;
   firstMove: FirstMoveState;
+  parkingDraft?: ParkingDraftState;
   winner?: WinnerState;
   canDraw: boolean;
   reconnectUntil?: number;
@@ -85,9 +108,12 @@ export type ClientMessage =
   | { type: "createRoom"; name?: string }
   | { type: "joinRoom"; roomId: string; name?: string; playerId?: PlayerId; sessionToken?: string }
   | { type: "leaveRoom" }
+  | { type: "setDealMode"; mode: DealMode }
   | { type: "setFirstMoveMode"; mode: FirstMoveMode }
   | { type: "chooseRps"; choice: RpsChoice }
   | { type: "rollDice" }
+  | { type: "toggleParkingCard"; cardId: string }
+  | { type: "finishParkingDraft" }
   | { type: "playCards"; cardIds: string[] }
   | { type: "pass" }
   | { type: "drawToFive" }

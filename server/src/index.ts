@@ -103,6 +103,12 @@ setInterval(() => {
   }
 }, 5_000).unref();
 
+setInterval(() => {
+  for (const room of store.autoFinishParkingDrafts()) {
+    broadcastRoom(room);
+  }
+}, 250).unref();
+
 server.listen(port, host, () => {
   console.log(`Seven Kings 523 server listening on ws://localhost:${port}`);
   for (const address of localNetworkAddresses()) {
