@@ -57,7 +57,7 @@ export interface FirstMoveState {
 
 export interface WinnerState {
   playerId: PlayerId;
-  reason: "special" | "emptyHand" | "opponentLeft";
+  reason: "special" | "emptyHand" | "opponentLeft" | "surrender";
 }
 
 export interface ParkingDraftPlayerState {
@@ -118,6 +118,7 @@ export type ClientMessage =
   | { type: "pass" }
   | { type: "drawToFive" }
   | { type: "claimSpecialWin" }
+  | { type: "surrender" }
   | { type: "readyForRematch" }
   | { type: "restartGame" };
 

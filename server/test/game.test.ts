@@ -130,8 +130,8 @@ describe("game flow", () => {
     expect(room.phase).toBe("drafting");
     expect(room.parkingDraft?.players.P2.pileCount).toBe(23);
     expect(room.parkingDraft?.players.P1.pileCount).toBe(22);
-    expect(room.parkingDraft?.deadlineAt).toBe(8_000);
-    expect(room.parkingDraft?.autoFinishAt).toBe(11_000);
+    expect(room.parkingDraft?.deadlineAt).toBe(13_000);
+    expect(room.parkingDraft?.autoFinishAt).toBe(16_000);
   });
 
   it("finalizes parking draft by keeping first five selections and adding late penalty cards", () => {

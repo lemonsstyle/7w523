@@ -20,6 +20,7 @@ import {
 import {
   analyzeCards,
   cardLabel,
+  hasSpecialWin,
   rankLabel,
   type Card,
   type ClientMessage,
@@ -47,6 +48,7 @@ export function App() {
   const [isMuted, setIsMuted] = useState(() => localStorage.getItem(SOUND_KEY) === "true");
   const [showRematchTransition, setShowRematchTransition] = useState(false);
   const [showFirstMoveReveal, setShowFirstMoveReveal] = useState(false);
+  const [parkingTransitionUntil, setParkingTransitionUntil] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [serverClockOffset, setServerClockOffset] = useState(0);
   const socketRef = useRef<WebSocket | null>(null);
@@ -212,6 +214,9 @@ export function App() {
     previousPhaseRef.current = state?.phase ?? null;
 
     if (previousPhase !== "finished" || state?.phase !== "rps") {
+      if (previousPhase === "rps" && state?.phase === "drafting" && state.dealMode === "parking") {
+        setParkingTransitionUntil(Date.now() + 5_000);
+      }
       return;
     }
 
@@ -283,6 +288,21 @@ export function App() {
       playSound("pass", isMuted);
     }
   }, [isMuted, state]);
+
+  useEffect(() => {
+    if (previousPhaseRef.current === "rps" && state?.phase === "drafting" && state.dealMode === "parking") {
+      setParkingTransitionUntil(Date.now() + 5_000);
+    }
+  }, [state?.dealMode, state?.phase]);
+
+  useEffect(() => {
+    if (!parkingTransitionUntil) return;
+    const interval = window.setInterval(() => {
+      setNow(Date.now());
+      if (Date.now() >= parkingTransitionUntil) setParkingTransitionUntil(null);
+    }, 100);
+    return () => window.clearInterval(interval);
+  }, [parkingTransitionUntil]);
 
   function emit(message: ClientMessage) {
     if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
@@ -440,7 +460,7 @@ export function App() {
 
               {state.phase === "playing" && you?.hand && (
                 <>
-                  <DeckMeter deckCount={state.deckCount} endgame={isEndgame} />
+                  {state.dealMode !== "parking" && <DeckMeter deckCount={state.deckCount} endgame={isEndgame} />}
                   <HandPanel
                     cards={you.hand}
                     selectedIds={selectedIds}
@@ -448,6 +468,7 @@ export function App() {
                     isYourTurn={isYourTurn}
                     canPass={Boolean(state.currentTrick) && isYourTurn}
                     canDraw={state.canDraw && isYourTurn}
+                    showDraw={state.dealMode !== "parking"}
                     onCardClick={(cardId) => handleCardClick(cardId, isYourTurn)}
                     onPlay={() => {
                       const hand = you.hand ?? [];
@@ -472,9 +493,15 @@ export function App() {
                       playSound("button", isMuted);
                       emit({ type: "drawToFive" });
                     }}
+                    claimEnabled={hasSpecialWin(you.hand)}
                     onClaim={() => {
                       playSound("button", isMuted);
                       emit({ type: "claimSpecialWin" });
+                    }}
+                    onSurrender={() => {
+                      if (!window.confirm("确定要认输吗？本局将判给对手。")) return;
+                      playSound("button", isMuted);
+                      emit({ type: "surrender" });
                     }}
                   />
                 </>
@@ -493,6 +520,7 @@ export function App() {
           </div>
         )}
         {showRematchTransition && <RematchTransition />}
+        {parkingTransitionUntil && <ParkingTransition remainingMs={Math.max(0, parkingTransitionUntil - now)} />}
       </section>
     </main>
   );
@@ -1069,16 +1097,23 @@ interface HandPanelProps {
   isYourTurn: boolean;
   canPass: boolean;
   canDraw: boolean;
+  showDraw: boolean;
   onCardClick: (cardId: string) => void;
   onPlay: () => void;
   onPass: () => void;
   onDraw: () => void;
   onClaim: () => void;
+  onSurrender: () => void;
+  claimEnabled: boolean;
 }
 
 function HandPanel(props: HandPanelProps) {
   return (
     <div className={`hand-zone ${props.isYourTurn ? "is-your-turn" : "is-opponent-turn"}`}>
+      <div className={`turn-callout ${props.isYourTurn ? "is-active" : ""}`} role="status">
+        <span className="turn-callout-dot" aria-hidden="true" />
+        <strong>{props.isYourTurn ? "轮到你出牌" : "等待对手出牌"}</strong>
+      </div>
       <div className="hand-cards">
         {props.cards.map((card) => (
           <PlayingCard
@@ -1104,13 +1139,16 @@ function HandPanel(props: HandPanelProps) {
           <button type="button" className="pass-action" onClick={props.onPass} disabled={!props.canPass}>
             Pass
           </button>
-          <button type="button" className="draw-action" onClick={props.onDraw} disabled={!props.canDraw}>
-            补牌
-          </button>
+          {props.showDraw && (
+            <button type="button" className="draw-action" onClick={props.onDraw} disabled={!props.canDraw}>
+              补牌
+            </button>
+          )}
         </div>
-        <button type="button" className="claim-action" onClick={props.onClaim}>
-          王座归位
-        </button>
+        <div className="secondary-action-group">
+          <button type="button" className="surrender-action" onClick={props.onSurrender}>认输</button>
+          <button type="button" className="claim-action" onClick={props.onClaim} disabled={!props.claimEnabled}>胜利宣言</button>
+        </div>
       </div>
     </div>
   );
@@ -1218,6 +1256,17 @@ function RematchTransition() {
   );
 }
 
+function ParkingTransition({ remainingMs }: { remainingMs: number }) {
+  const progress = Math.max(0, Math.min(1, remainingMs / 5_000));
+  const blur = Math.round(progress * 14);
+  return (
+    <div className="parking-transition" role="status" aria-live="assertive" style={{ ["--transition-blur" as string]: `${blur}px` }}>
+      <strong>{Math.max(1, Math.ceil(remainingMs / 1000))}</strong>
+      <span>先手揭晓，抢车位即将开始</span>
+    </div>
+  );
+}
+
 function PlayingCard({
   card,
   selected,
@@ -1290,7 +1339,7 @@ function JokerFace({ variant, compact = false }: { variant: "small" | "big"; com
 }
 
 function TurnBadge({ active }: { active: boolean }) {
-  return <span className={`turn-badge ${active ? "is-active" : ""}`}>{active ? "行动中" : "等待"}</span>;
+  return <span className={`turn-badge ${active ? "is-active" : ""}`}>{active ? "轮到出牌" : "等待出牌"}</span>;
 }
 
 function send(socket: WebSocket, message: ClientMessage) {

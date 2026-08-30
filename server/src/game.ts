@@ -27,6 +27,7 @@ import {
 
 const PARKING_DRAFT_MS = 7_000;
 const PARKING_AUTO_FINISH_MS = 10_000;
+const PARKING_REVEAL_MS = 5_000;
 const MAX_PARKING_PENALTY = 3;
 
 export interface Player {
@@ -143,6 +144,11 @@ export class GameStore {
       case "claimSpecialWin":
         return this.withPlayer(session, (room, player) => {
           claimSpecialWin(room, player.id);
+          return room;
+        });
+      case "surrender":
+        return this.withPlayer(session, (room, player) => {
+          surrender(room, player.id);
           return room;
         });
       case "readyForRematch":
@@ -439,6 +445,9 @@ export function rollDice(room: Room, playerId: PlayerId, random: () => number = 
 export function toggleParkingCard(room: Room, playerId: PlayerId, cardId: string, now = Date.now()): void {
   assertPhase(room, "drafting", "现在还不能抢车位。");
   const draft = assertParkingDraft(room);
+  if (now < draft.startedAt) {
+    throw new GameError("揭晓过渡中，请稍候开始抢牌。");
+  }
   const playerDraft = draft.players[playerId];
 
   if (playerDraft.finished) {
@@ -475,6 +484,9 @@ export function finishParkingDraft(
   assertPlayer(room, playerId);
 
   const draft = assertParkingDraft(room);
+  if (now < draft.startedAt) {
+    throw new GameError("揭晓过渡中，请稍候开始抢牌。");
+  }
   finalizeParkingPlayer(room, playerId, now, false, random);
 
   const playerName = room.players[playerId]?.name ?? playerId;
@@ -619,6 +631,14 @@ export function claimSpecialWin(room: Room, playerId: PlayerId): void {
   finish(room, playerId, "special", `${player.name} 集齐 7、王、5、2、3，赢得本局。`);
 }
 
+export function surrender(room: Room, playerId: PlayerId): void {
+  assertPhase(room, "playing", "对局还没有开始。");
+  const player = assertPlayer(room, playerId);
+  const winner = opponentOf(playerId);
+  const winnerName = room.players[winner]?.name ?? winner;
+  finish(room, winner, "surrender", `${player.name} 认输，${winnerName} 赢得本局。`);
+}
+
 export function restartGame(room: Room, playerId: PlayerId, random: () => number): void {
   if (playerId !== "P1") {
     throw new GameError("只有房主可以重开。");
@@ -698,9 +718,9 @@ export function startParkingDraft(room: Room, firstPlayer: PlayerId, random: () 
 
   room.parkingDraft = {
     firstPlayer,
-    startedAt: now,
-    deadlineAt: now + PARKING_DRAFT_MS,
-    autoFinishAt: now + PARKING_AUTO_FINISH_MS,
+    startedAt: now + PARKING_REVEAL_MS,
+    deadlineAt: now + PARKING_REVEAL_MS + PARKING_DRAFT_MS,
+    autoFinishAt: now + PARKING_REVEAL_MS + PARKING_AUTO_FINISH_MS,
     players: {
       P1: makeParkingDraftPlayer(firstPlayer === "P1" ? firstPile : secondPile),
       P2: makeParkingDraftPlayer(firstPlayer === "P2" ? firstPile : secondPile)

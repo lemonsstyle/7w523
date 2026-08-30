@@ -939,6 +939,45 @@ label {
   transition: border-color 220ms ease, background 220ms ease, box-shadow 220ms ease;
 }
 
+.turn-callout {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid rgba(245, 240, 223, 0.12);
+  border-radius: 8px;
+  color: rgba(245, 240, 223, 0.58);
+  background: rgba(0, 0, 0, 0.12);
+  font-size: 14px;
+}
+
+.turn-callout.is-active {
+  color: #efffcf;
+  border-color: rgba(217, 255, 159, 0.5);
+  background: linear-gradient(90deg, rgba(110, 168, 78, 0.28), rgba(246, 197, 83, 0.12));
+  box-shadow: 0 0 0 1px rgba(217, 255, 159, 0.12), 0 0 24px rgba(110, 168, 78, 0.18);
+  animation: turn-callout-pulse 1800ms ease-in-out infinite;
+}
+
+.turn-callout-dot {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: rgba(245, 240, 223, 0.3);
+}
+
+.turn-callout.is-active .turn-callout-dot {
+  background: #d9ff9f;
+  box-shadow: 0 0 0 4px rgba(217, 255, 159, 0.14), 0 0 12px rgba(217, 255, 159, 0.75);
+}
+
+@keyframes turn-callout-pulse {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1px); }
+}
+
 .hand-zone.is-your-turn {
   border-color: rgba(217, 255, 159, 0.28);
   background:
@@ -1206,6 +1245,26 @@ label {
   font-weight: 800;
 }
 
+.claim-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+  color: rgba(245, 240, 223, 0.45);
+  border-color: rgba(245, 240, 223, 0.14);
+  background: rgba(245, 240, 223, 0.04);
+}
+
+.secondary-action-group {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.surrender-action {
+  color: rgba(245, 240, 223, 0.72);
+  border-color: rgba(245, 240, 223, 0.2);
+  background: rgba(245, 240, 223, 0.05);
+}
+
 .result-panel {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
@@ -1452,6 +1511,31 @@ label {
 
 .rematch-transition > span {
   color: rgba(245, 240, 223, 0.62);
+}
+
+.parking-transition {
+  position: fixed;
+  inset: 0;
+  z-index: 21;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  color: #f5f0df;
+  background: rgba(22, 22, 18, 0.72);
+  backdrop-filter: blur(var(--transition-blur, 14px));
+  transition: backdrop-filter 120ms linear;
+}
+
+.parking-transition strong {
+  color: #f6c553;
+  font-size: clamp(72px, 15vw, 144px);
+  line-height: 1;
+}
+
+.parking-transition span {
+  color: rgba(245, 240, 223, 0.72);
+  font-size: 18px;
 }
 
 .shuffle-stack {
